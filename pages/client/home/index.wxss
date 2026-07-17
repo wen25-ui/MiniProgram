@@ -1,0 +1,3 @@
+.section order-card {
+  display: block;
+}

@@ -1,0 +1,30 @@
+<view class="page">
+  <view class="section">
+    <view class="title">佣金明细</view>
+    <view class="subtitle">客户办理成功并核销后，商家佣金锁定为客户返费的 10%。</view>
+  </view>
+
+  <view class="grid-2 section">
+    <money-card label="预计佣金" amount="{{summary.expected || '¥0'}}"></money-card>
+    <money-card label="已锁定" amount="{{summary.locked || '¥0'}}"></money-card>
+    <money-card label="已结算" amount="{{summary.settled || '¥0'}}"></money-card>
+  </view>
+
+  <view wx:if="{{orders.length}}" class="list-gap">
+    <view wx:for="{{orders}}" wx:key="id" class="panel">
+      <view class="row">
+        <view>
+          <view class="strong">{{item.customerName}}</view>
+          <view class="muted">{{item.maskedPhone}} · {{item.id}}</view>
+        </view>
+        <status-tag status="{{item.status}}"></status-tag>
+      </view>
+      <view class="divider"></view>
+      <view class="row"><text class="muted">预计佣金</text><text class="money">{{item.expectedCommissionText}}</text></view>
+      <view class="row"><text class="muted">锁定佣金</text><text class="money">{{item.lockedCommissionText}}</text></view>
+      <view class="row"><text class="muted">结算佣金</text><text class="money">{{item.settledCommissionText}}</text></view>
+      <view class="row"><text class="muted">佣金状态</text><text>{{item.commissionStatus}}</text></view>
+    </view>
+  </view>
+  <empty-state wx:else title="暂无佣金" desc="核销后会生成锁定佣金"></empty-state>
+</view>

@@ -1,0 +1,27 @@
+<view class="page">
+  <view class="section">
+    <view class="title">{{merchant.name}}</view>
+    <view class="subtitle">仅展示当前门店推荐客户，佣金按客户返费 10% 计算。</view>
+  </view>
+
+  <view class="grid-2 section">
+    <money-card label="推荐客户" amount="{{stats.count || 0}}" note="本店客户数量"></money-card>
+    <money-card label="预计佣金" amount="{{stats.expected || '¥0'}}" note="全部推荐订单"></money-card>
+    <money-card label="已锁定佣金" amount="{{stats.locked || '¥0'}}" note="核销后锁定"></money-card>
+    <money-card label="已结算佣金" amount="{{stats.settled || '¥0'}}" note="管理员标记"></money-card>
+  </view>
+
+  <view class="row section">
+    <view class="strong">最新客户</view>
+    <text class="muted" bindtap="goCustomers">全部客户</text>
+  </view>
+  <view class="list-gap section" wx:if="{{latest.length}}">
+    <order-card wx:for="{{latest}}" wx:key="id" order="{{item}}" bind:taporder="goCustomers"></order-card>
+  </view>
+  <empty-state wx:else title="暂无推荐客户" desc="客户提交申请后会出现在这里"></empty-state>
+
+  <view class="list-gap">
+    <button class="btn" bindtap="goCustomers">查看客户列表</button>
+    <button class="btn secondary" bindtap="goCommission">查看佣金明细</button>
+  </view>
+</view>

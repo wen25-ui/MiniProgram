@@ -1,0 +1,40 @@
+{
+  "pages": [
+    "pages/identity/index",
+    "pages/client/home/index",
+    "pages/client/screen/index",
+    "pages/client/screen-result/index",
+    "pages/client/profile/index",
+    "pages/client/orders/index",
+    "pages/client/order-detail/index",
+    "pages/client/refund/index",
+    "pages/merchant/home/index",
+    "pages/merchant/customers/index",
+    "pages/merchant/order-detail/index",
+    "pages/merchant/commission/index",
+    "pages/salesman/tasks/index",
+    "pages/salesman/task-detail/index",
+    "pages/admin/dashboard/index",
+    "pages/admin/review/index",
+    "pages/admin/review-detail/index",
+    "pages/admin/dispatch/index",
+    "pages/admin/progress/index",
+    "pages/admin/verify/index",
+    "pages/admin/refunds/index",
+    "pages/admin/commissions/index"
+  ],
+  "window": {
+    "navigationBarTitleText": "业务返费原型",
+    "navigationBarBackgroundColor": "#102033",
+    "navigationBarTextStyle": "white",
+    "backgroundColor": "#f5f7fb"
+  },
+  "usingComponents": {
+    "order-card": "/components/order-card/index",
+    "status-tag": "/components/status-tag/index",
+    "money-card": "/components/money-card/index",
+    "empty-state": "/components/empty-state/index"
+  },
+  "style": "v2",
+  "lazyCodeLoading": "requiredComponents"
+}

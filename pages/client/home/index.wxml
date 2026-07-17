@@ -1,0 +1,22 @@
+<view class="page">
+  <view class="section">
+    <view class="title">客户办理</view>
+    <view class="subtitle">完成初筛后提交预约资料，可查看订单进度、预计返费和退费状态。</view>
+  </view>
+
+  <view class="grid-2 section">
+    <money-card label="预计返费" amount="{{order.expectedRefundText || '¥0'}}" note="核销后生成"></money-card>
+    <money-card label="当前状态" amount="{{order.statusLabel || '-'}}" note="跨角色同步"></money-card>
+  </view>
+
+  <view wx:if="{{loading}}" class="panel section muted">加载中...</view>
+  <order-card wx:elif="{{order}}" class="section" order="{{order}}" bind:taporder="goOrders"></order-card>
+  <empty-state wx:else title="暂无申请" desc="请先完成初筛并提交申请"></empty-state>
+
+  <view class="list-gap">
+    <button class="btn" bindtap="goScreen">填写初筛信息</button>
+    <button class="btn secondary" bindtap="goOrders">查看订单进度</button>
+    <button class="btn secondary" bindtap="goRefund">查看返费状态</button>
+    <button class="btn ghost" bindtap="switchRole">返回身份选择</button>
+  </view>
+</view>

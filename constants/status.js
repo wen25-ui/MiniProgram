@@ -1,0 +1,47 @@
+const ORDER_STATUS = {
+  WAIT_REVIEW: 'WAIT_REVIEW',
+  REVIEW_REJECTED: 'REVIEW_REJECTED',
+  WAIT_DISPATCH: 'WAIT_DISPATCH',
+  WAIT_ACCEPT: 'WAIT_ACCEPT',
+  WAIT_VISIT: 'WAIT_VISIT',
+  PROCESSING: 'PROCESSING',
+  WAIT_VERIFY: 'WAIT_VERIFY',
+  SUCCESS: 'SUCCESS',
+  WAIT_REFUND: 'WAIT_REFUND',
+  REFUNDED: 'REFUNDED',
+  CANCELLED: 'CANCELLED'
+}
+
+const STATUS_TEXT = {
+  WAIT_REVIEW: '待审核',
+  REVIEW_REJECTED: '审核不通过',
+  WAIT_DISPATCH: '待派单',
+  WAIT_ACCEPT: '待接单',
+  WAIT_VISIT: '待上门',
+  PROCESSING: '办理中',
+  WAIT_VERIFY: '待核销',
+  SUCCESS: '已成功',
+  WAIT_REFUND: '待退费',
+  REFUNDED: '已退费',
+  CANCELLED: '已取消'
+}
+
+const STATUS_TONE = {
+  WAIT_REVIEW: 'warning',
+  REVIEW_REJECTED: 'danger',
+  WAIT_DISPATCH: 'warning',
+  WAIT_ACCEPT: 'info',
+  WAIT_VISIT: 'info',
+  PROCESSING: 'primary',
+  WAIT_VERIFY: 'warning',
+  SUCCESS: 'success',
+  WAIT_REFUND: 'warning',
+  REFUNDED: 'success',
+  CANCELLED: 'muted'
+}
+
+module.exports = {
+  ORDER_STATUS,
+  STATUS_TEXT,
+  STATUS_TONE
+}

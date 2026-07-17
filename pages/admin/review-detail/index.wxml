@@ -1,0 +1,19 @@
+<view class="page" wx:if="{{order}}">
+  <order-card class="section" order="{{order}}" showMerchant="{{true}}"></order-card>
+
+  <view class="panel section">
+    <view class="row"><text class="muted">客户姓名</text><text>{{order.customerName}}</text></view>
+    <view class="divider"></view>
+    <view class="row"><text class="muted">手机号</text><text>{{order.maskedPhone}}</text></view>
+    <view class="divider"></view>
+    <view class="row"><text class="muted">地址</text><text>{{order.address}}</text></view>
+    <view class="divider"></view>
+    <view class="row"><text class="muted">话费档位</text><text>{{order.packageLevel}}</text></view>
+  </view>
+
+  <view class="fixed-spacer"></view>
+  <view class="fixed-actions action-grid">
+    <button class="btn danger" bindtap="reject">审核驳回</button>
+    <button class="btn" bindtap="approve">审核通过</button>
+  </view>
+</view>

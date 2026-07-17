@@ -1,0 +1,21 @@
+<view class="page">
+  <view class="result {{passed ? 'pass' : 'fail'}}">
+    <view class="result-title">{{passed ? '初筛通过' : '初筛不通过'}}</view>
+    <view class="result-desc">
+      {{passed ? '请继续补充姓名、手机号、地址和预约时间。' : '当前资料暂不满足办理条件，请调整后重新提交初筛。'}}
+    </view>
+  </view>
+
+  <view class="panel section">
+    <view class="row"><text class="muted">手机号</text><text>{{form.phone}}</text></view>
+    <view class="divider"></view>
+    <view class="row"><text class="muted">本地条件</text><text>{{form.localQualified ? '满足' : '不满足'}}</text></view>
+    <view class="divider"></view>
+    <view class="row"><text class="muted">话费档位</text><text>{{form.packageLevel}}</text></view>
+    <view class="divider"></view>
+    <view class="row"><text class="muted">长期规则</text><text>{{form.longTermAccepted ? '接受' : '不接受'}}</text></view>
+  </view>
+
+  <button wx:if="{{passed}}" class="btn" bindtap="goProfile">补充预约资料</button>
+  <button wx:else class="btn secondary" bindtap="retry">重新填写</button>
+</view>

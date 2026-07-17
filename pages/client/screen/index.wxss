@@ -1,0 +1,5 @@
+.picker-text {
+  height: 84rpx;
+  line-height: 84rpx;
+  color: #172033;
+}

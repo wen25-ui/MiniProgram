@@ -1,0 +1,32 @@
+.role-card {
+  min-height: 142rpx;
+  background: #fff;
+  border: 1rpx solid #e7ebf2;
+  border-radius: 12rpx;
+  padding: 26rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-sizing: border-box;
+}
+
+.role-title {
+  color: #102033;
+  font-size: 34rpx;
+  font-weight: 800;
+}
+
+.role-desc {
+  margin-top: 8rpx;
+  color: #667085;
+  font-size: 24rpx;
+}
+
+.arrow {
+  color: #9aa4b2;
+  font-size: 48rpx;
+}
+
+.reset {
+  margin-top: 36rpx;
+}

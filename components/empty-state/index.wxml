@@ -1,0 +1,5 @@
+<view class="empty">
+  <view class="mark">--</view>
+  <view class="title">{{title}}</view>
+  <view wx:if="{{desc}}" class="desc">{{desc}}</view>
+</view>

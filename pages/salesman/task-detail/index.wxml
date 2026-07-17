@@ -1,0 +1,32 @@
+<view class="page" wx:if="{{order}}">
+  <order-card class="section" order="{{order}}"></order-card>
+
+  <view class="panel section">
+    <view class="row"><text class="muted">客户</text><text>{{order.customerName}}</text></view>
+    <view class="divider"></view>
+    <view class="row"><text class="muted">手机号</text><text>{{order.maskedPhone}}</text></view>
+    <view class="divider"></view>
+    <view class="row"><text class="muted">预约时间</text><text>{{order.appointmentTime}}</text></view>
+    <view class="divider"></view>
+    <view class="row"><text class="muted">上门地址</text><text>{{order.address}}</text></view>
+  </view>
+
+  <view class="panel section">
+    <view class="strong">凭证图片</view>
+    <view wx:if="{{voucherImage}}" class="voucher" bindtap="previewVoucher">
+      <image src="{{voucherImage}}" mode="aspectFill"></image>
+      <text>点击预览</text>
+    </view>
+    <view wx:else class="voucher empty-voucher">暂未选择凭证</view>
+    <button class="btn secondary choose" bindtap="chooseVoucher">选择凭证图片</button>
+  </view>
+
+  <view class="fixed-spacer"></view>
+  <view class="fixed-actions actions">
+    <button wx:if="{{flags.canAccept}}" class="btn" bindtap="accept">接单</button>
+    <button wx:elif="{{flags.canVisit}}" class="btn" bindtap="visit">标记已上门</button>
+    <button wx:elif="{{flags.canMarkProcessing}}" class="btn" bindtap="processing">标记办理中</button>
+    <button wx:elif="{{flags.canSubmit}}" class="btn" bindtap="submitVoucher">提交公司核销</button>
+    <button wx:else class="btn secondary">当前无需操作</button>
+  </view>
+</view>

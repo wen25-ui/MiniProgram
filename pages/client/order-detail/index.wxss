@@ -1,0 +1,10 @@
+.timeline {
+  display: flex;
+  gap: 16rpx;
+  margin-top: 22rpx;
+}
+
+.timeline-body {
+  flex: 1;
+  line-height: 1.6;
+}

@@ -1,0 +1,25 @@
+<view class="card" bindtap="onTap">
+  <view class="top">
+    <view>
+      <view class="name">{{order.customerName || '待补充姓名'}}</view>
+      <view class="phone">{{order.maskedPhone}}</view>
+    </view>
+    <status-tag status="{{order.status}}"></status-tag>
+  </view>
+  <view class="meta">
+    <view>订单号：{{order.id}}</view>
+    <view>预约：{{order.appointmentTime || '未填写'}}</view>
+    <view wx:if="{{showMerchant}}">门店：{{order.merchantName}}</view>
+    <view wx:if="{{showSalesman}}">业务员：{{order.salesmanName || '未指派'}}</view>
+  </view>
+  <view class="bottom">
+    <view>
+      <text class="muted">预计返费</text>
+      <text class="money">{{order.expectedRefundText}}</text>
+    </view>
+    <view>
+      <text class="muted">预计佣金</text>
+      <text class="money">{{order.expectedCommissionText}}</text>
+    </view>
+  </view>
+</view>

@@ -1,0 +1,5 @@
+<view class="money-card">
+  <view class="label">{{label}}</view>
+  <view class="amount">{{amount}}</view>
+  <view wx:if="{{note}}" class="note">{{note}}</view>
+</view>
