@@ -28,3 +28,27 @@ Reviewer:
 
 Tester:
 负责测试验证
+
+# Agent Workflow
+
+
+所有任务遵循：
+
+需求
+ ↓
+PM Agent分析
+ ↓
+Developer Agent开发
+ ↓
+Tester Agent验证
+ ↓
+Reviewer Agent审核
+ ↓
+Git提交
+
+
+禁止：
+
+- 未分析直接修改
+- 删除未知代码
+- 修改配置不说明原因
