@@ -1,0 +1,30 @@
+{
+  "description": "Copy this file to member-appids.json and fill in each member's local AppID.",
+  "defaultAppId": "wx4d14bebc6eeee753",
+  "members": [
+    {
+      "name": "wen25-ui",
+      "role": "owner",
+      "appId": "wx4d14bebc6eeee753",
+      "remark": "Default project AppID."
+    },
+    {
+      "name": "developer-1",
+      "role": "developer",
+      "appId": "wx_your_personal_appid",
+      "remark": "Replace with this member's assigned AppID."
+    },
+    {
+      "name": "tester-1",
+      "role": "tester",
+      "appId": "wx_your_personal_appid",
+      "remark": "Replace with this member's assigned AppID."
+    }
+  ],
+  "localUsage": {
+    "wechatDevToolsFile": "project.private.config.json",
+    "teamMappingFile": "config/member-appids.json",
+    "note": "Both files are local-only and ignored by Git. Keep personal AppID values out of shared commits."
+  }
+}
+

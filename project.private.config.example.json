@@ -1,4 +1,5 @@
 {
+  "appid": "wx_your_personal_appid",
   "libVersion": "3.8.0",
   "projectname": "wechat-business-prototype",
   "setting": {
@@ -19,3 +20,4 @@
     "bigPackageSizeSupport": false
   }
 }
+

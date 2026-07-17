@@ -1,0 +1,6 @@
+# Local WeChat DevTools personal config.
+project.private.config.json
+
+# Local team member AppID mapping.
+config/member-appids.json
+

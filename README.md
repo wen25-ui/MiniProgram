@@ -7,6 +7,18 @@
 3. 项目目录选择本文件夹：`wechat-business-prototype`。
 4. AppID 可使用测试号或游客模式。
 
+## 成员 AppID 配置
+
+团队成员的微信小程序 AppID 映射使用个人本地配置，不提交真实个人 AppID。
+
+首次拉取代码后，每位成员执行一次：
+
+1. 复制 `project.private.config.example.json` 为 `project.private.config.json`。
+2. 将 `project.private.config.json` 中的 `appid` 改为自己的微信小程序 AppID。
+3. 如需维护成员映射，复制 `config/member-appids.example.json` 为 `config/member-appids.json`，再填写各成员 AppID。
+
+`project.private.config.json` 和 `config/member-appids.json` 已加入 `.gitignore`，后续拉取代码不会覆盖成员自己的本地配置；共享的 `project.config.json` 保持默认 AppID。
+
 ## 演示闭环
 
 客户：
