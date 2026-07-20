@@ -1,0 +1,38 @@
+<view class="page">
+  <view class="hero">
+    <view class="hero-copy">
+      <text class="welcome">您好，欢迎回来</text>
+      <text class="hero-title">家庭通信业务办理</text>
+      <text class="phone">已认证 {{maskedPhone}}</text>
+    </view>
+    <view class="hero-mark">家</view>
+  </view>
+
+  <view class="apply-card">
+    <view class="apply-head">
+      <view><text class="section-tag">商家扫码申请</text><text class="apply-title">{{screening?'办理申请进度':'扫码后填写办理资料'}}</text></view>
+      <view class="status-pill {{screening ? 'processing' : ''}}">{{statusText}}</view>
+    </view>
+    <text class="summary">{{summary}}</text>
+    <view wx:if="{{screening}}" class="process">
+      <view class="process-item active"><view class="dot">1</view><text>提交申请</text></view>
+      <view class="line {{screening ? 'active-line' : ''}}"></view>
+      <view class="process-item {{screening ? 'active' : ''}}"><view class="dot">2</view><text>客服复审</text></view>
+      <view class="line"></view>
+      <view class="process-item"><view class="dot">3</view><text>预约办理</text></view>
+    </view>
+    <button class="primary-action {{screening ? '' : 'no-progress'}}" bindtap="goScreening">{{screening ? '查看申请资料详情' : hasMerchantInvite ? '继续填写资料' : '扫描商家二维码'}}</button>
+  </view>
+
+  <view class="section-head"><text class="section-title">常用服务</text><text class="section-note">便捷办理，一目了然</text></view>
+  <view class="quick-grid">
+    <view class="quick-card" bindtap="goApplications"><view class="quick-icon progress-icon">◷</view><text class="quick-title">业务进度</text><text class="quick-desc">查看审核与预约状态</text></view>
+    <view class="quick-card" bindtap="goProfile"><view class="quick-icon user-icon">人</view><text class="quick-title">用户管理</text><text class="quick-desc">账户信息与安全设置</text></view>
+  </view>
+
+  <view class="notice-card">
+    <view class="notice-icon">i</view>
+    <view class="notice-copy"><text class="notice-title">办理提示</text><text class="notice-text">客户不能自主发起资料申请，请先扫描商家提供的专属二维码。</text></view>
+  </view>
+  <client-bottom-nav current="home"></client-bottom-nav>
+</view>

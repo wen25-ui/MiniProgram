@@ -1,0 +1,21 @@
+<view class="page">
+  <view class="profile-hero" style="background:{{theme.gradient}}">
+    <view class="avatar">{{theme.mark}}</view>
+    <view class="profile-main"><text class="account-name">{{theme.name}}</text><text class="phone">{{phone}}</text><view class="role-tag">{{roleText}}</view></view>
+  </view>
+  <view class="status-card">
+    <view><text class="status-value" style="color:{{theme.color}}">正常</text><text class="status-label">账户状态</text></view>
+    <view><text class="status-value" style="color:{{theme.color}}">已认证</text><text class="status-label">手机认证</text></view>
+    <view><text class="status-value" style="color:{{theme.color}}">{{roleText}}</text><text class="status-label">当前身份</text></view>
+  </view>
+  <text class="section-title">账户服务</text>
+  <view class="menu-card">
+    <view class="menu-row" data-name="账号与安全" bindtap="showPending"><view class="menu-icon security">盾</view><view class="menu-main"><text>账号与安全</text><text>修改密码、手机号与登录设备</text></view><text class="arrow">›</text></view>
+    <view class="menu-row" data-name="消息通知" bindtap="showPending"><view class="menu-icon notice">铃</view><view class="menu-main"><text>消息通知</text><text>业务待办和状态变更提醒</text></view><text class="arrow">›</text></view>
+    <view class="menu-row" data-name="操作记录" bindtap="showPending"><view class="menu-icon record">记</view><view class="menu-main"><text>操作记录</text><text>查看本人近期业务操作</text></view><text class="arrow">›</text></view>
+    <view class="menu-row" data-name="帮助与反馈" bindtap="showPending"><view class="menu-icon help">?</view><view class="menu-main"><text>帮助与反馈</text><text>常见问题与意见反馈</text></view><text class="arrow">›</text></view>
+  </view>
+  <button class="logout" bindtap="logout">退出当前账户</button>
+  <text class="version">业务返现管理 · {{roleText}}</text>
+  <role-bottom-nav role="{{role}}" current="profile"></role-bottom-nav>
+</view>

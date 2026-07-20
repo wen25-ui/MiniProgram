@@ -1,0 +1,6 @@
+<view class="nav">
+  <view wx:for="{{items}}" wx:key="key" class="nav-item {{current === item.key ? 'active' : ''}}" data-key="{{item.key}}" bindtap="switchTab">
+    <text class="nav-icon">{{item.icon}}</text>
+    <text class="nav-label">{{item.label}}</text>
+  </view>
+</view>

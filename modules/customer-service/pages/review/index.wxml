@@ -1,0 +1,47 @@
+<view class="page">
+  <view class="header"><text class="title">客服处理中心</text><text class="desc">完成审核、联系、办理方式确认、派单和核销</text></view>
+  <scroll-view class="filters" scroll-x enhanced show-scrollbar="false">
+    <view class="filter-row">
+      <view class="{{filter==='all'?'active':''}}" data-filter="all" bindtap="chooseFilter">全部</view>
+      <view class="{{filter==='review'?'active':''}}" data-filter="review" bindtap="chooseFilter">审核</view>
+      <view class="{{filter==='contact'?'active':''}}" data-filter="contact" bindtap="chooseFilter">联系</view>
+      <view class="{{filter==='appointment'?'active':''}}" data-filter="appointment" bindtap="chooseFilter">上门</view>
+      <view class="{{filter==='store'?'active':''}}" data-filter="store" bindtap="chooseFilter">营业厅</view>
+      <view class="{{filter==='verify'?'active':''}}" data-filter="verify" bindtap="chooseFilter">核销</view>
+    </view>
+  </scroll-view>
+  <text wx:if="{{message}}" class="message">{{message}}</text>
+  <view wx:for="{{filtered}}" wx:key="id" class="card">
+    <view class="head"><view><text class="phone">{{item.maskedPhone}}</text><text class="id">{{item.id}}</text></view><text class="status">{{item.statusText}}</text></view>
+    <view class="facts"><view><text>本地号码</text><text>{{item.localNumberText}}</text></view><view><text>套餐档位</text><text>{{item.expenseText}}</text></view></view>
+    <text class="description">{{item.statusDescription}}</text>
+
+    <block wx:if="{{item.status==='PENDING_REVIEW'}}">
+      <textarea class="input" placeholder="驳回时请填写原因" data-field="rejectReasons" data-id="{{item.id}}" bindinput="onFieldInput"/>
+      <view class="actions"><button class="primary" data-id="{{item.id}}" data-action="approve" bindtap="operate">审核通过</button><button class="danger" data-id="{{item.id}}" data-action="reject" bindtap="operate">驳回申请</button></view>
+    </block>
+
+    <block wx:if="{{item.status==='PENDING_CONTACT'}}">
+      <textarea class="input" placeholder="未联系成功或客户放弃时填写说明" data-field="contactReasons" data-id="{{item.id}}" bindinput="onFieldInput"/>
+      <button class="primary full" data-id="{{item.id}}" data-action="contacted" bindtap="operate">已联系成功</button>
+      <view class="actions"><button class="secondary" data-id="{{item.id}}" data-action="unreachable" bindtap="operate">暂未联系成功</button><button class="danger" data-id="{{item.id}}" data-action="declined" bindtap="operate">客户放弃</button></view>
+    </block>
+    <button wx:if="{{item.status==='CONTACT_FAILED'}}" class="primary full" data-id="{{item.id}}" data-action="retry-contact" bindtap="operate">重新联系客户</button>
+
+    <view wx:if="{{item.status==='PENDING_SERVICE_MODE'}}" class="actions"><button class="primary" data-id="{{item.id}}" data-action="home-service" bindtap="operate">上门办理</button><button class="secondary" data-id="{{item.id}}" data-action="store-service" bindtap="operate">营业厅办理</button></view>
+
+    <block wx:if="{{item.status==='PENDING_APPOINTMENT'}}"><input class="input" placeholder="例：2026-07-20 14:00" data-field="appointmentTimes" data-id="{{item.id}}" bindinput="onFieldInput"/><button class="primary full" data-id="{{item.id}}" data-action="confirm-appointment" bindtap="operate">确认上门时间</button></block>
+    <picker wx:if="{{item.status==='PENDING_DISPATCH'}}" range="{{salesmen}}" range-key="name" data-id="{{item.id}}" bindchange="onDispatchChange"><view class="picker">选择业务员并派单 ›</view></picker>
+
+    <button wx:if="{{item.status==='PENDING_STORE_SERVICE'}}" class="primary full" data-id="{{item.id}}" data-action="start-store" bindtap="operate">客户已到店，开始办理</button>
+    <block wx:if="{{item.status==='IN_STORE_SERVICE'||(item.status==='VERIFICATION_RETURNED'&&item.serviceMode==='STORE_SERVICE')}}">
+      <textarea class="input" placeholder="填写营业厅办理结果与凭证说明" data-field="storeRemarks" data-id="{{item.id}}" bindinput="onFieldInput"/>
+      <textarea wx:if="{{item.status==='IN_STORE_SERVICE'}}" class="input" placeholder="办理失败时填写原因" data-field="failureReasons" data-id="{{item.id}}" bindinput="onFieldInput"/>
+      <view class="actions"><button class="primary" data-id="{{item.id}}" data-action="submit-store" bindtap="operate">提交凭证</button><button wx:if="{{item.status==='IN_STORE_SERVICE'}}" class="danger" data-id="{{item.id}}" data-action="fail-store" bindtap="operate">办理失败</button></view>
+    </block>
+
+    <block wx:if="{{item.status==='PENDING_VERIFICATION'}}"><view class="voucher">凭证说明：{{item.fulfillment.voucherRemark}}</view><textarea class="input" placeholder="退回时请填写原因" data-field="verificationReasons" data-id="{{item.id}}" bindinput="onFieldInput"/><view class="actions"><button class="primary" data-id="{{item.id}}" data-action="verify-approve" bindtap="operate">核销通过</button><button class="danger" data-id="{{item.id}}" data-action="verify-return" bindtap="operate">退回补充</button></view></block>
+  </view>
+  <view wx:if="{{!loading&&!filtered.length}}" class="empty">当前分类暂无待办事项</view>
+  <role-bottom-nav role="customer-service" current="review"></role-bottom-nav>
+</view>

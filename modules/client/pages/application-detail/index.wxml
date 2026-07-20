@@ -1,0 +1,37 @@
+<view class="page">
+  <view wx:if="{{loading}}" class="state-card"><view class="loading-ring"></view><text>正在读取申请资料…</text></view>
+  <view wx:elif="{{message && !application}}" class="state-card error"><text>{{message}}</text></view>
+
+  <block wx:elif="{{application}}">
+    <view class="status-card">
+      <view><text class="eyebrow">申请状态</text><text class="status-title">{{application.statusText}}</text><text class="status-desc">{{application.statusDescription}}</text></view>
+      <view class="status-icon">✓</view>
+    </view>
+
+    <view class="lock-tip"><text class="lock-icon">锁</text><text>申请资料提交后已锁定，不可直接修改。如需变更，请先撤回申请后重新提交。</text></view>
+
+    <view class="detail-card">
+      <view class="card-title"><text>联系方式</text><text class="step">01</text></view>
+      <view class="detail-row"><text class="label">申请手机号</text><text class="value">{{application.phone}}</text></view>
+      <view class="detail-row"><text class="label">是否本地号码</text><text class="value">{{application.localNumberText}}</text></view>
+      <view wx:if="{{application.localNumber === false}}" class="detail-row"><text class="label">同意办理本地卡</text><text class="value">{{application.acceptLocalCardText}}</text></view>
+    </view>
+
+    <view class="detail-card">
+      <view class="card-title"><text>套餐情况</text><text class="step">02</text></view>
+      <view class="detail-row"><text class="label">个人（全家）套餐档位</text><text class="value highlight">{{application.expenseTierText}}</text></view>
+    </view>
+
+    <view class="detail-card">
+      <view class="card-title"><text>履约确认</text><text class="step">03</text></view>
+      <view wx:for="{{commitments}}" wx:key="label" class="commitment-row"><view class="check {{item.accepted ? 'accepted' : ''}}">{{item.accepted ? '✓' : '!'}}</view><text>{{item.label}}</text></view>
+    </view>
+
+    <view class="meta-card"><view><text>申请编号</text><text>{{application.id}}</text></view><view><text>提交时间</text><text>{{application.submittedAt}}</text></view><view><text>最近更新</text><text>{{application.updatedAt}}</text></view></view>
+    <view class="info-card"><view class="card-title"><text>办理安排</text><text class="step">03</text></view><view class="detail-row"><text class="label">办理方式</text><text class="value">{{application.serviceModeText}}</text></view><view wx:if="{{application.appointmentTime}}" class="detail-row"><text class="label">预约时间</text><text class="value">{{application.appointmentTime}}</text></view><view wx:if="{{application.contactReason}}" class="detail-row"><text class="label">联系说明</text><text class="value">{{application.contactReason}}</text></view><view wx:if="{{application.serviceFailureReason}}" class="detail-row"><text class="label">失败原因</text><text class="value">{{application.serviceFailureReason}}</text></view></view>
+    <text wx:if="{{message}}" class="message">{{message}}</text>
+    <button wx:if="{{application.canWithdraw}}" class="withdraw-button" loading="{{withdrawing}}" disabled="{{withdrawing}}" bindtap="withdraw">撤回申请</button>
+    <button wx:if="{{application.status === 'WITHDRAWN'||application.status === 'PRE_SCREEN_REJECTED'||application.status === 'REVIEW_REJECTED'||application.status === 'CLIENT_DECLINED'||application.status === 'SERVICE_FAILED'||application.status === 'CLOSED'}}" class="reapply-button" bindtap="reapply">重新提交申请</button>
+    <text wx:if="{{!application.canWithdraw && application.status !== 'WITHDRAWN'&&application.status !== 'PRE_SCREEN_REJECTED'&&application.status !== 'REVIEW_REJECTED'&&application.status !== 'CLIENT_DECLINED'&&application.status !== 'SERVICE_FAILED'&&application.status !== 'CLOSED'}}" class="withdraw-note">当前业务阶段不可撤回申请</text>
+  </block>
+</view>

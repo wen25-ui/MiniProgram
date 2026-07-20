@@ -1,5 +1,5 @@
 {
-  "appid": "wx_your_personal_appid",
+  "appid": "wx993714925802691b",
   "libVersion": "3.8.0",
   "projectname": "wechat-business-prototype",
   "setting": {
@@ -12,7 +12,7 @@
     "useApiHook": true,
     "showShadowRootInWxmlPanel": false,
     "useStaticServer": false,
-    "useLanDebug": false,
+    "useLanDebug": true,
     "showES6CompileOption": false,
     "compileHotReLoad": true,
     "checkInvalidKey": true,
@@ -20,4 +20,3 @@
     "bigPackageSizeSupport": false
   }
 }
-

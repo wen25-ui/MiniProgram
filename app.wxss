@@ -1,8 +1,10 @@
 page {
   min-height: 100vh;
-  background: #f5f7fb;
-  color: #172033;
+  background: #f4f7fb;
+  color: #172d47;
   font-size: 28rpx;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
 }
 
 .page {
@@ -11,16 +13,32 @@ page {
   box-sizing: border-box;
 }
 
+button {
+  box-sizing: border-box;
+  font-family: inherit;
+}
+
+button::after {
+  border: 0;
+}
+
+input,
+textarea {
+  color: #263b53;
+  font-family: inherit;
+}
+
 .section {
   margin-bottom: 24rpx;
 }
 
 .panel {
   background: #ffffff;
-  border: 1rpx solid #e7ebf2;
-  border-radius: 12rpx;
-  padding: 26rpx;
+  border: 1rpx solid #e7ecf3;
+  border-radius: 24rpx;
+  padding: 28rpx;
   box-sizing: border-box;
+  box-shadow: 0 8rpx 24rpx rgba(25, 53, 83, 0.055);
 }
 
 .title {
@@ -58,8 +76,8 @@ page {
 
 .btn {
   height: 88rpx;
-  border-radius: 10rpx;
-  background: #1f5fbf;
+  border-radius: 16rpx;
+  background: linear-gradient(135deg, #1d5fa2, #2e7ac0);
   color: #fff;
   display: flex;
   align-items: center;
@@ -121,8 +139,8 @@ textarea {
   width: 100%;
   min-height: 84rpx;
   border: 1rpx solid #d7deea;
-  border-radius: 10rpx;
-  background: #fff;
+  border-radius: 15rpx;
+  background: #f9fbfd;
   padding: 0 22rpx;
   box-sizing: border-box;
 }

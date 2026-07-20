@@ -1,0 +1,26 @@
+<view class="page">
+  <view class="hero"><view><text class="eyebrow">商家工作台</text><text class="hero-title">{{merchant.name || '门店经营中心'}}</text><text class="hero-desc">客户归属、办理进度与佣金概览</text></view><view class="hero-icon">店</view></view>
+  <view wx:if="{{message}}" class="message">{{message}}</view>
+  <view class="stats-grid">
+    <view class="stat-card"><text class="stat-value">{{stats.total || 0}}</text><text class="stat-label">归属申请</text></view>
+    <view class="stat-card"><text class="stat-value blue">{{stats.processing || 0}}</text><text class="stat-label">办理中</text></view>
+    <view class="stat-card"><text class="stat-value green">{{stats.completed || 0}}</text><text class="stat-label">已完成</text></view>
+    <view class="stat-card"><text class="stat-value orange">¥{{stats.settled_commission || 0}}</text><text class="stat-label">已结算佣金</text></view>
+  </view>
+  <view class="quick-row"><view class="quick-card" bindtap="showQr"><view class="quick-icon qr">码</view><view><text class="quick-title">门店推广码</text><text class="quick-desc">邀请客户并建立归属</text></view></view><view class="quick-card" bindtap="goApplications"><view class="quick-icon customer">客</view><view><text class="quick-title">客户申请</text><text class="quick-desc">查看全部办理进度</text></view></view></view>
+  <view class="section-head"><text>最近申请</text><text bindtap="goApplications">查看全部 ›</text></view>
+  <view wx:if="{{applications.length}}" class="list-card"><view wx:for="{{applications}}" wx:key="id" class="application-row"><view class="avatar">{{index + 1}}</view><view class="application-main"><text class="phone">{{item.maskedPhone}}</text><text class="id">{{item.id}}</text></view><view class="application-side"><text class="status">{{item.statusText}}</text><text class="time">{{item.updatedAt}}</text></view></view></view>
+  <view wx:else class="empty">暂无归属申请，使用门店推广码邀请客户。</view>
+  <role-bottom-nav role="merchant" current="home"></role-bottom-nav>
+  <view wx:if="{{qrVisible}}" class="qr-mask" bindtap="closeQr">
+    <view class="qr-dialog" catchtap="preventClose">
+      <text class="qr-dialog-title">{{merchant.name || '门店'}}推广码</text>
+      <text class="qr-dialog-desc">请让客户登录用户端后，点击“扫描商家二维码”</text>
+      <view wx:if="{{qrLoading}}" class="qr-loading">正在生成二维码…</view>
+      <image wx:if="{{qrDataUrl}}" class="qr-image" src="{{qrDataUrl}}" mode="aspectFit" show-menu-by-longpress="{{true}}"/>
+      <text wx:if="{{inviteCode}}" class="invite-code">测试邀请码：{{inviteCode}}</text>
+      <text class="qr-tip">普通二维码仅用于当前调试测试，不会直接唤起小程序。</text>
+      <button class="qr-close" bindtap="closeQr">关闭</button>
+    </view>
+  </view>
+</view>

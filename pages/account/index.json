@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "用户管理",
+  "usingComponents": {
+    "role-bottom-nav": "/components/role-bottom-nav/index"
+  }
+}

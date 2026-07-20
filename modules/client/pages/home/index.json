@@ -1,0 +1,4 @@
+{
+  "navigationBarTitleText": "用户端",
+  "usingComponents": {"client-bottom-nav": "/modules/client/components/bottom-nav/index"}
+}

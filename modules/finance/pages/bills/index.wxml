@@ -1,0 +1,22 @@
+<view class="page">
+  <view class="header">
+    <text class="title">纸面账单</text>
+    <text class="desc">仅记录账单与入账确认，不执行线上支付或转账</text>
+  </view>
+  <text wx:if="{{message}}" class="message">{{message}}</text>
+  <view wx:for="{{bills}}" wx:key="id" class="card">
+    <view class="head">
+      <view><text class="bill-no">{{item.bill_number}}</text><text class="merchant">{{item.merchant_name || '未关联门店'}}</text></view>
+      <text class="status">{{item.statusText}}</text>
+    </view>
+    <view class="amount-row">
+      <view><text>客户返现</text><text>¥{{item.cashback_amount || 0}}</text></view>
+      <view><text>商家佣金</text><text>¥{{item.commission_amount || 0}}</text></view>
+    </view>
+    <view class="row"><text>关联客户</text><text>{{item.maskedPhone}}</text></view>
+    <view class="row"><text>账单日期</text><text>{{item.bill_date}}</text></view>
+    <view class="row"><text>申请编号</text><text>{{item.application_id}}</text></view>
+  </view>
+  <view wx:if="{{!loading&&!bills.length}}" class="empty">暂无账单记录</view>
+  <role-bottom-nav role="finance" current="bills"></role-bottom-nav>
+</view>

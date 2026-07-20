@@ -1,0 +1,36 @@
+<view class="page">
+  <view class="brand-panel">
+    <view class="brand-mark"><view class="brand-ring"></view><view class="brand-core"></view></view>
+    <view class="brand-copy"><text class="brand-eyebrow">BUSINESS SERVICE</text><text class="brand-title">业务办理管理平台</text><text class="brand-desc">统一、安全地连接客户与服务人员</text></view>
+    <view class="brand-orb orb-one"></view><view class="brand-orb orb-two"></view>
+  </view>
+
+  <view class="card">
+    <view class="card-head"><view><text class="welcome">欢迎回来</text><text class="subtitle">请登录您的工作账号</text></view><button class="scan" aria-label="扫码登录" bindtap="scanCode"><view class="camera-icon"><view class="camera-lens"></view></view><text>扫码</text></button></view>
+
+    <view class="field">
+      <text class="field-label">手机号码</text>
+      <view class="input-shell"><view class="input-icon phone-icon"></view><input class="input" type="number" maxlength="11" placeholder="请输入登录手机号" placeholder-class="placeholder" bindinput="onAccountInput"/></view>
+    </view>
+    <view class="field">
+      <text class="field-label">登录密码</text>
+      <view class="input-shell"><view class="input-icon lock-icon"><view class="lock-loop"></view></view><input class="input" password placeholder="请输入登录密码" placeholder-class="placeholder" bindinput="onPasswordInput"/></view>
+    </view>
+
+    <view wx:if="{{message}}" class="message"><view class="message-dot"></view><text>{{message}}</text></view>
+    <button class="login-button" disabled="{{submitting}}" bindtap="submitLogin">{{submitting?'正在登录…':'登录'}}</button>
+    <view class="register-entry" bindtap="goRegister"><text>还没有客户账号？</text><text class="register-link">立即注册</text></view>
+  </view>
+
+  <view class="trust-row"><view><text class="trust-icon">✓</text><text>安全认证</text></view><view class="trust-divider"></view><view><text class="trust-icon">盾</text><text>隐私保护</text></view></view>
+
+  <view wx:if="{{submitting}}" class="login-mask" catchtouchmove="preventTouchMove">
+    <view class="login-dialog">
+      <view class="login-spinner"></view>
+      <text class="login-dialog-title">正在登录</text>
+      <text class="login-dialog-status">{{loginStatus}}</text>
+      <view class="progress-track"><view class="progress-value" style="width: {{loginProgress}}%;"></view></view>
+      <text class="progress-text">{{loginProgress}}%</text>
+    </view>
+  </view>
+</view>

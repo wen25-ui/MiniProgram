@@ -1,2 +1,11 @@
 # Local WeChat DevTools personal config.
 project.private.config.json
+
+# Local API runtime logs.
+server/local-api.*.log
+
+# Local API dependencies and secrets.
+server/node_modules/
+server/.env
+server/.env.*
+!server/.env.example

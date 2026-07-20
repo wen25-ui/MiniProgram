@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "后台账号管理",
+  "usingComponents": {
+    "role-bottom-nav": "/components/role-bottom-nav/index"
+  }
+}

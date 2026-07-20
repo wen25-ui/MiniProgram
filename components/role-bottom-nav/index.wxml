@@ -1,0 +1,7 @@
+<view class="nav-spacer"></view>
+<view class="nav">
+  <view wx:for="{{items}}" wx:key="key" class="nav-item {{current === item.key ? 'active' : ''}}" style="{{current === item.key ? 'color:' + activeColor : ''}}" data-key="{{item.key}}" bindtap="switchPage">
+    <view class="nav-icon">{{item.icon}}</view>
+    <text class="nav-label">{{item.label}}</text>
+  </view>
+</view>

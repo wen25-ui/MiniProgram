@@ -27,7 +27,6 @@
   },
   "compileType": "miniprogram",
   "libVersion": "3.8.0",
-  "appid": "wx4d14bebc6eeee753",
   "projectname": "wechat-business-prototype",
   "miniprogramRoot": "./",
   "simulatorPluginLibVersion": {},
@@ -35,5 +34,6 @@
     "ignore": [],
     "include": []
   },
-  "editorSetting": {}
+  "editorSetting": {},
+  "appid": "wx993714925802691b"
 }

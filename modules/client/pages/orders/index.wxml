@@ -1,0 +1,44 @@
+<view class="page">
+  <view class="header-card">
+    <view><text class="eyebrow">业务办理</text><text class="page-title">我的业务进度</text><text class="header-desc">实时查看审核、预约、上门及返现状态</text></view>
+    <view class="header-icon">◷</view>
+  </view>
+
+  <view wx:if="{{loading}}" class="state-card"><view class="loading-ring"></view><text>正在加载业务进度…</text></view>
+
+  <view wx:elif="{{applications.length}}" class="application-list">
+    <view wx:for="{{applications}}" wx:key="id" class="application-card">
+      <view class="card-head">
+        <view><text class="order-label">申请编号</text><text class="id">{{item.id}}</text></view>
+        <text class="status">{{item.statusText}}</text>
+      </view>
+      <text class="description">{{item.statusDescription}}</text>
+
+      <view class="progress-head"><text>办理进度</text><text>{{item.progress}}%</text></view>
+      <view class="progress-track"><view class="progress-value" style="width: {{item.progress}}%;"></view></view>
+      <view class="stage-row">
+        <text class="{{item.stage >= 1 ? 'done' : ''}}">审核</text>
+        <text class="{{item.stage >= 2 ? 'done' : ''}}">预约</text>
+        <text class="{{item.stage >= 3 ? 'done' : ''}}">办理</text>
+        <text class="{{item.stage >= 4 ? 'done' : ''}}">核销</text>
+        <text class="{{item.stage >= 5 ? 'done' : ''}}">完成</text>
+      </view>
+
+      <view class="details">
+        <view wx:if="{{item.appointmentTime}}" class="detail-row"><text class="detail-label">预约上门</text><text class="detail-value">{{item.appointmentTime}}</text></view>
+        <view class="detail-row"><text class="detail-label">返现入账</text><text class="detail-value highlight">{{item.refundText}}</text></view>
+      </view>
+      <text class="time">最近更新 {{item.updatedAt}}</text>
+      <button class="detail-button" data-id="{{item.id}}" bindtap="goDetail">查看提交资料</button>
+    </view>
+  </view>
+
+  <view wx:else class="empty-card">
+    <view class="empty-illustration"><view class="empty-file">＋</view></view>
+    <text class="empty-title">暂无业务申请</text>
+    <text class="empty-text">提交资格申请后，可在这里查看完整的业务办理进度。</text>
+    <text wx:if="{{message}}" class="error-text">{{message}}</text>
+    <button class="primary-action" bindtap="goScreening">提交资格申请</button>
+  </view>
+  <client-bottom-nav current="progress"></client-bottom-nav>
+</view>

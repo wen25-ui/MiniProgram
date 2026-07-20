@@ -1,5 +1,10 @@
+const { getSession } = require('./core/auth/session')
+
 App({
   globalData: {
-    currentRole: ''
+    session: null
+  },
+  onLaunch() {
+    this.globalData.session = getSession()
   }
 })

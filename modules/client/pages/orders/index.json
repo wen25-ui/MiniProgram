@@ -1,0 +1,4 @@
+{
+  "navigationBarTitleText": "业务进度",
+  "usingComponents": {"client-bottom-nav": "/modules/client/components/bottom-nav/index"}
+}
