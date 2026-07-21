@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "全部数据",
+  "usingComponents": {
+    "role-bottom-nav": "/components/role-bottom-nav/index"
+  }
+}

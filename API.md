@@ -32,6 +32,11 @@ server 目录
 - BOSS经营管理
 - 管理后台
 
+客服核销列表：
+
+- `GET /v1/customer/verifications`：待核销订单。
+- `GET /v1/customer/verifications?category=completed`：已完成核销订单。
+
 ## 后续维护规则
 
 新增接口时同步记录：

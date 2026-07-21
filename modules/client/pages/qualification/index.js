@@ -21,15 +21,6 @@ Page({
     const source = getEntrySource(session.userId)
     this.setData({ source, hasMerchantInvite: Boolean(source && source.inviteCode) })
     requestMyApplications(session).then(applications => {
-      const withdrawn = applications.find(item => item.status === 'WITHDRAWN')
-      if (withdrawn) {
-        return wx.showModal({
-          title: '无法重新申请',
-          content: '该账号存在已撤回的申请，根据当前规则不能重新提交。',
-          showCancel: false,
-          success: () => wx.redirectTo({ url: `/modules/client/pages/application-detail/index?id=${withdrawn.id}` })
-        })
-      }
       const existing = applications.find(item => BLOCKING.has(item.status))
       if (existing) return wx.redirectTo({ url: `/modules/client/pages/application-detail/index?id=${existing.id}` })
       if (source && source.inviteCode) return

@@ -1,4 +1,4 @@
-# Local API launcher. The database is remote MySQL.
+﻿# Local API launcher. The database is remote MySQL.
 #
 # 启动方式（在 server 目录中执行）：
 # powershell -ExecutionPolicy Bypass -File .\start-local.ps1
@@ -8,6 +8,7 @@
 
 $ErrorActionPreference = 'Stop'
 $scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+$projectRoot = Split-Path -Parent $scriptRoot
 Set-Location $scriptRoot
 
 $apiPort = 3000
@@ -52,13 +53,68 @@ if ($driverExitCode -ne 0) {
 }
 
 $env:API_HOST = '0.0.0.0'
-$lanIps = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
-  Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' -and $_.AddressState -eq 'Preferred' } |
-  Select-Object -ExpandProperty IPAddress -Unique)
+function Test-PrivateIpv4($ipAddress) {
+  $parts = [string]$ipAddress -split '\.'
+  if ($parts.Count -ne 4) { return $false }
+
+  $octets = @()
+  foreach ($part in $parts) {
+    $value = 0
+    if (-not [int]::TryParse($part, [ref]$value) -or $value -lt 0 -or $value -gt 255) { return $false }
+    $octets += $value
+  }
+
+  return ($octets[0] -eq 10) -or
+    ($octets[0] -eq 172 -and $octets[1] -ge 16 -and $octets[1] -le 31) -or
+    ($octets[0] -eq 192 -and $octets[1] -eq 168)
+}
+
+$lanIps = @(Get-NetIPConfiguration -ErrorAction SilentlyContinue |
+  Where-Object { $_.IPv4DefaultGateway -and $_.IPv4Address } |
+  ForEach-Object { $_.IPv4Address.IPAddress } |
+  Where-Object { Test-PrivateIpv4 $_ } |
+  Select-Object -Unique)
+
+if ($env:API_LAN_HOST) {
+  if (-not (Test-PrivateIpv4 $env:API_LAN_HOST)) {
+    throw 'API_LAN_HOST 必须是与手机同网段的私有 IPv4，例如 192.168.1.18。'
+  }
+  $lanHost = $env:API_LAN_HOST
+} elseif ($lanIps.Count -gt 0) {
+  $lanHost = $lanIps[0]
+} else {
+  throw '未检测到可用于真机调试的局域网 IPv4。请连接 Wi-Fi，或设置 API_LAN_HOST 后重新运行脚本。'
+}
+
+if ($lanIps.Count -gt 1 -and -not $env:API_LAN_HOST) {
+  Write-Host "检测到多个局域网地址，当前使用 $lanHost。若手机无法访问，请设置 API_LAN_HOST 为与手机同网段的 IPv4 后重试。" -ForegroundColor Yellow
+}
+
+$apiConfigPath = Join-Path $projectRoot 'config\api.js'
+$apiConfigContent = @"
+// 由 server/start-local.ps1 在本机调试时自动更新。
+// 真机必须与此地址处于同一局域网；生产环境必须改为已备案的 HTTPS 域名。
+const lanHost = '$lanHost'
+
+module.exports = {
+  baseUrl: 'http://${lanHost}:$apiPort'
+}
+"@
+$utf8WithoutBom = New-Object System.Text.UTF8Encoding($false)
+[System.IO.File]::WriteAllText($apiConfigPath, $apiConfigContent, $utf8WithoutBom)
+
+$firewallRuleName = "MiniProgram Local API $apiPort"
+if (-not (Get-NetFirewallRule -DisplayName $firewallRuleName -ErrorAction SilentlyContinue)) {
+  try {
+    New-NetFirewallRule -DisplayName $firewallRuleName -Direction Inbound -Action Allow -Protocol TCP -LocalPort $apiPort -Profile Private -ErrorAction Stop | Out-Null
+    Write-Host "已添加 Windows 专用网络入站规则：TCP $apiPort" -ForegroundColor Green
+  } catch {
+    Write-Host "无法自动添加 Windows 防火墙规则。请以管理员身份运行 PowerShell，或手动允许专用网络 TCP $apiPort 入站。" -ForegroundColor Yellow
+  }
+}
 
 Write-Host "Starting API: http://127.0.0.1:$apiPort" -ForegroundColor Green
-foreach ($lanIp in $lanIps) {
-  Write-Host "Real-device LAN API: http://${lanIp}:$apiPort" -ForegroundColor Cyan
-}
+Write-Host "Real-device LAN API: http://${lanHost}:$apiPort" -ForegroundColor Cyan
+Write-Host "已同步小程序请求地址：$apiConfigPath" -ForegroundColor Cyan
 npm run migrate
 npm start

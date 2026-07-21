@@ -31,8 +31,9 @@ function getCustomerSalesmen() {
 function getCustomerOutlets() {
   return customerRequest('/v1/customer/outlets').then(response => response.outlets || [])
 }
-function getCustomerVerifications() {
-  return customerRequest('/v1/customer/verifications').then(response => response.verifications || [])
+function getCustomerVerifications(category) {
+  const query = category === 'completed' ? '?category=completed' : ''
+  return customerRequest(`/v1/customer/verifications${query}`).then(response => response.verifications || [])
 }
 function getCustomerVerification(id) {
   return customerRequest(`/v1/customer/verifications/${id}`).then(response => response.verification)

@@ -27,7 +27,7 @@ const statusDescription = {
   PENDING_SERVICE: '业务员已接到任务，请等待上门。', IN_SERVICE: '业务员正在办理业务。',
   PENDING_STORE_SERVICE: '请按约定前往营业厅办理。', IN_STORE_SERVICE: '营业厅正在办理业务。', SERVICE_FAILED: '本次业务办理失败，可查看失败原因。',
   PENDING_VERIFICATION: '办理资料正在等待客服核销。', VERIFICATION_RETURNED: '办理资料已退回业务员补充。',
-  SERVICE_COMPLETED: '业务办理已完成。', WITHDRAWN: '申请已撤回，可重新提交。', CLOSED: '该申请已结束。'
+  SERVICE_COMPLETED: '业务办理已完成。', WITHDRAWN: '申请已撤回，该申请已关闭。请重新扫描商家二维码后提交新申请。', CLOSED: '该申请已结束。'
 }
 const expenseTierText = { UNDER_79: '低于 79 元', FROM_79: '79 元以上', FROM_150: '150 元以上', FROM_250: '250 元以上', FROM_400: '400 元以上' }
 
@@ -281,10 +281,11 @@ async function customerOutlets(req, res) {
   const [rows] = await db.execute("SELECT id, name, contact_name AS contactName, contact_phone AS contactPhone FROM merchants WHERE status = 'ACTIVE' ORDER BY name")
   json(res, 200, { outlets: rows })
 }
-async function customerVerifications(req, res) {
+async function customerVerifications(req, res, category) {
   await sessionFor(req, 'customer-service')
+  const completed = category === 'completed'
   const [rows] = await db.query(
-    `SELECT a.id, a.phone_snapshot, a.service_mode, a.updated_at, f.submitted_at,
+    `SELECT a.id, a.phone_snapshot, a.status, a.service_mode, a.updated_at, f.submitted_at, f.verified_at,
             COALESCE(u.display_name, u.phone) AS salesman_name,
             COALESCE(am.name, m.name) AS outlet_name
        FROM applications a
@@ -292,13 +293,15 @@ async function customerVerifications(req, res) {
        LEFT JOIN users u ON u.id = COALESCE(f.submitted_by_user_id, f.salesman_user_id)
        LEFT JOIN merchants m ON m.id = a.merchant_id
        LEFT JOIN merchants am ON am.id = a.assigned_merchant_id
-      WHERE a.status = 'PENDING_VERIFICATION'
-      ORDER BY f.submitted_at ASC`
+      WHERE a.status = ? ${completed ? "AND f.verification_status = 'APPROVED'" : ''}
+      ORDER BY ${completed ? 'f.verified_at DESC' : 'f.submitted_at ASC'}`,
+    [completed ? 'SERVICE_COMPLETED' : 'PENDING_VERIFICATION']
   )
   json(res, 200, { verifications: rows.map(row => ({
     id: row.id, maskedPhone: `${row.phone_snapshot.slice(0, 3)}****${row.phone_snapshot.slice(-4)}`,
+    status: row.status, statusText: statusText[row.status] || '待处理',
     serviceMode: row.service_mode, salesmanName: row.salesman_name || '', outletName: row.outlet_name || '',
-    submittedAt: row.submitted_at, updatedAt: row.updated_at
+    submittedAt: row.submitted_at, verifiedAt: row.verified_at, updatedAt: row.updated_at
   })) })
 }
 async function customerVerificationDetail(req, res, id) {
@@ -455,11 +458,6 @@ async function submitScreening(req, res) {
     [user.id, inviteCode]
   )
   if (!invite) throw Object.assign(new Error('扫码状态已失效，请重新扫描商家二维码'), { status: 400 })
-  const [[withdrawnApplication]] = await db.execute(
-    "SELECT id FROM applications WHERE client_user_id = ? AND status = 'WITHDRAWN' ORDER BY updated_at DESC LIMIT 1",
-    [user.id]
-  )
-  if (withdrawnApplication) throw Object.assign(new Error('该账号存在已撤回的申请，不能重新提交'), { status: 409 })
   const [[activeApplication]] = await db.execute(`SELECT id FROM applications WHERE client_user_id = ? AND status IN (${Array.from(blockingStatuses).map(() => '?').join(',')}) LIMIT 1`, [user.id, ...blockingStatuses])
   if (activeApplication) throw Object.assign(new Error('已有进行中的申请，请先查看或撤回原申请'), { status: 409 })
   const applicationPhone = String(body.phone || '').replace(/\s/g, '')
@@ -772,7 +770,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname === '/v1/customer/work-items') return await customerWorkItems(req, res)
     if (req.method === 'GET' && url.pathname === '/v1/customer/salesmen') return await customerSalesmen(req, res)
     if (req.method === 'GET' && url.pathname === '/v1/customer/outlets') return await customerOutlets(req, res)
-    if (req.method === 'GET' && url.pathname === '/v1/customer/verifications') return await customerVerifications(req, res)
+    if (req.method === 'GET' && url.pathname === '/v1/customer/verifications') return await customerVerifications(req, res, url.searchParams.get('category'))
     const customerVerificationMatch = url.pathname.match(/^\/v1\/customer\/verifications\/([\w-]+)$/)
     if (req.method === 'GET' && customerVerificationMatch) return await customerVerificationDetail(req, res, customerVerificationMatch[1])
     const customerDetailMatch = url.pathname.match(/^\/v1\/customer\/applications\/([\w-]+)$/)

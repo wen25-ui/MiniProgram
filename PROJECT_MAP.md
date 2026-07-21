@@ -41,6 +41,9 @@
 页面：
 - home 首页
 - review 审核
+- dispatch 任务派遣
+- verification 结果核销
+- all-data 全部数据筛选
 
 ### 财务模块 modules/finance
 功能：账单和财务处理

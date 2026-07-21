@@ -1,6 +1,7 @@
-// 真机局域网调试时填写运行 server/start-local.ps1 的电脑 IPv4；留空则使用开发者工具本机地址。
+// 由 server/start-local.ps1 在本机调试时自动更新。
+// 真机必须与此地址处于同一局域网；生产环境必须改为已备案的 HTTPS 域名。
 const lanHost = '192.168.1.18'
 
 module.exports = {
-  baseUrl: lanHost ? `http://${lanHost}:3000` : 'http://127.0.0.1:3000'
+  baseUrl: 'http://192.168.1.18:3000'
 }

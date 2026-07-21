@@ -19,7 +19,7 @@
     },
     {
       "root": "modules/customer-service",
-      "pages": ["pages/home/index", "pages/review/index", "pages/review-detail/index", "pages/dispatch/index", "pages/verification/index", "pages/verification-detail/index"]
+      "pages": ["pages/home/index", "pages/review/index", "pages/review-detail/index", "pages/dispatch/index", "pages/verification/index", "pages/verification-detail/index", "pages/all-data/index"]
     },
     {
       "root": "modules/finance",

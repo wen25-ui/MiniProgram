@@ -8,7 +8,8 @@
       <view class="status-icon">✓</view>
     </view>
 
-    <view class="lock-tip"><text class="lock-icon">锁</text><text>申请资料提交后已锁定，不可直接修改。如需变更，请先撤回申请后重新提交。</text></view>
+    <view wx:if="{{application.status !== 'WITHDRAWN'}}" class="lock-tip"><text class="lock-icon">锁</text><text>申请资料提交后已锁定，不可直接修改。如需变更，请先撤回申请后重新提交。</text></view>
+    <view wx:else class="lock-tip"><text class="lock-icon">锁</text><text>该申请已关闭，仅保留历史记录。请返回首页重新扫描商家二维码后提交新申请。</text></view>
 
     <view wx:if="{{application.merchant}}" class="detail-card merchant-card">
       <view class="card-title"><text>扫码商家</text><text class="step">商</text></view>
@@ -38,7 +39,7 @@
     <view class="info-card"><view class="card-title"><text>办理安排</text><text class="step">03</text></view><view class="detail-row"><text class="label">办理方式</text><text class="value">{{application.serviceModeText}}</text></view><view wx:if="{{application.appointmentTime}}" class="detail-row"><text class="label">预约时间</text><text class="value">{{application.appointmentTime}}</text></view><view wx:if="{{application.contactReason}}" class="detail-row"><text class="label">联系说明</text><text class="value">{{application.contactReason}}</text></view><view wx:if="{{application.serviceFailureReason}}" class="detail-row"><text class="label">失败原因</text><text class="value">{{application.serviceFailureReason}}</text></view></view>
     <text wx:if="{{message}}" class="message">{{message}}</text>
     <button wx:if="{{application.canWithdraw}}" class="withdraw-button" loading="{{withdrawing}}" disabled="{{withdrawing}}" bindtap="withdraw">撤回申请</button>
-    <button wx:if="{{application.status === 'WITHDRAWN'||application.status === 'PRE_SCREEN_REJECTED'||application.status === 'REVIEW_REJECTED'||application.status === 'CLIENT_DECLINED'||application.status === 'SERVICE_FAILED'||application.status === 'CLOSED'}}" class="reapply-button" bindtap="reapply">重新提交申请</button>
+    <button wx:if="{{application.status === 'PRE_SCREEN_REJECTED'||application.status === 'REVIEW_REJECTED'||application.status === 'CLIENT_DECLINED'||application.status === 'SERVICE_FAILED'||application.status === 'CLOSED'}}" class="reapply-button" bindtap="reapply">重新提交申请</button>
     <text wx:if="{{!application.canWithdraw && application.status !== 'WITHDRAWN'&&application.status !== 'PRE_SCREEN_REJECTED'&&application.status !== 'REVIEW_REJECTED'&&application.status !== 'CLIENT_DECLINED'&&application.status !== 'SERVICE_FAILED'&&application.status !== 'CLOSED'}}" class="withdraw-note">当前业务阶段不可撤回申请</text>
   </block>
 </view>
