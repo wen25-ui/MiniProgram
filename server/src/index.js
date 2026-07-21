@@ -7,6 +7,7 @@ const config = require('./config')
 
 const roles = new Set(['client', 'merchant', 'salesman', 'customer-service', 'finance', 'boss', 'admin'])
 const managedRoles = new Set(['merchant', 'salesman', 'customer-service'])
+const salesmanTypes = new Set(['HOME_VISIT', 'BRANCH'])
 const expenseTiers = new Set(['UNDER_79', 'FROM_79', 'FROM_150', 'FROM_250', 'FROM_400'])
 const withdrawableStatuses = new Set(['PENDING_REVIEW', 'PENDING_CONTACT', 'CONTACT_FAILED', 'PENDING_SERVICE_MODE', 'PENDING_APPOINTMENT', 'PENDING_DISPATCH', 'PENDING_STORE_SERVICE'])
 const blockingStatuses = new Set(['PENDING_REVIEW', 'PENDING_CONTACT', 'CONTACT_FAILED', 'PENDING_SERVICE_MODE', 'PENDING_APPOINTMENT', 'PENDING_DISPATCH', 'PENDING_SERVICE', 'IN_SERVICE', 'PENDING_STORE_SERVICE', 'IN_STORE_SERVICE', 'PENDING_VERIFICATION', 'VERIFICATION_RETURNED'])
@@ -31,11 +32,29 @@ const statusDescription = {
 const expenseTierText = { UNDER_79: '低于 79 元', FROM_79: '79 元以上', FROM_150: '150 元以上', FROM_250: '250 元以上', FROM_400: '400 元以上' }
 
 function json(res, code, body) {
-  res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' })
+  res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
   res.end(JSON.stringify(body))
 }
 function error(res, code, message) { json(res, code, { error: message }) }
 function validPhone(phone) { return /^1\d{10}$/.test(String(phone || '').replace(/\s/g, '')) }
+function normalizeRegion(value) { return String(value || '').replace(/[省市自治区特别行政区\s]/g, '') }
+async function findPhoneAttribution(phone, executor = db) {
+  const normalized = String(phone || '').replace(/\s/g, '')
+  if (!validPhone(normalized)) throw Object.assign(new Error('请输入正确的手机号'), { status: 400 })
+  const [[row]] = await executor.execute(
+    'SELECT phone, province, city, isp, isp_type, post_code, city_code, area_code FROM phone_location WHERE phone = ? LIMIT 1',
+    [normalized.slice(0, 7)]
+  )
+  if (!row) return { phone: normalized, prefix: normalized.slice(0, 7), queryStatus: 'NOT_FOUND', isLocal: null, province: '', city: '', isp: '', message: '暂未查到该号段，请手动确认是否为本地号码。' }
+  const isLocal = String(row.area_code || '') === String(config.localAreaCode)
+  return {
+    phone: normalized, prefix: row.phone, queryStatus: 'QUERY_SUCCESS', isLocal,
+    eligibleProvince: config.localProvince, eligibleCity: config.localCity,
+    province: row.province, city: row.city, isp: row.isp, ispType: row.isp_type,
+    postCode: row.post_code, cityCode: row.city_code, areaCode: row.area_code,
+    message: isLocal ? `号码归属地为${row.province}${row.city}，属于本地号码。` : `号码归属地为${row.province}${row.city}，非${config.localProvince}${config.localCity}本地号码。`
+  }
+}
 function passwordHash(password) { return crypto.createHash('sha256').update(String(password)).digest('hex') }
 async function readBody(req) {
   const chunks = []
@@ -48,7 +67,7 @@ function tokenHash(token) { return crypto.createHash('sha256').update(token).dig
 async function createSession(userId, executor = db) {
   const token = crypto.randomBytes(32).toString('base64url')
   const id = crypto.randomUUID()
-  await executor.execute(
+  await executor.query(
     'INSERT INTO auth_sessions (id, user_id, token_hash, expires_at) VALUES (?, ?, ?, DATE_ADD(NOW(3), INTERVAL ? DAY))',
     [id, userId, tokenHash(token), config.sessionTtlDays]
   )
@@ -58,30 +77,39 @@ async function sessionFor(req, expectedRole) {
   const header = req.headers.authorization || ''
   const token = header.startsWith('Bearer ') ? header.slice(7) : ''
   if (!token) throw Object.assign(new Error('请先登录'), { status: 401 })
-  const [rows] = await db.execute(
-    `SELECT u.id, u.phone, u.login_name, u.display_name, GROUP_CONCAT(ur.role_code) AS roles, MAX(ur.salesman_code) AS salesman_code, MAX(ur.merchant_id) AS merchant_id
-       FROM auth_sessions s JOIN users u ON u.id = s.user_id LEFT JOIN user_roles ur ON ur.user_id = u.id
-      WHERE s.token_hash = ? AND s.expires_at > NOW(3) AND u.account_status = 'ACTIVE'
-      GROUP BY u.id`, [tokenHash(token)]
+  // SQLPub may route ordinary SELECT statements to a lagging replica. A locking
+  // read is forced to the primary so a session is usable immediately after login.
+  const [[activeSession]] = await db.query(
+    'SELECT user_id FROM auth_sessions WHERE token_hash = ? AND expires_at > NOW(3) FOR UPDATE',
+    [tokenHash(token)]
+  )
+  if (!activeSession) throw Object.assign(new Error('登录已过期'), { status: 401 })
+  const [rows] = await db.query(
+    `SELECT u.id, u.phone, u.login_name, u.display_name, GROUP_CONCAT(ur.role_code) AS roles,
+            MAX(ur.salesman_code) AS salesman_code, MAX(ur.salesman_type) AS salesman_type, MAX(ur.merchant_id) AS merchant_id
+       FROM users u LEFT JOIN user_roles ur ON ur.user_id = u.id
+      WHERE u.id = ? AND u.account_status = 'ACTIVE'
+      GROUP BY u.id`, [activeSession.user_id]
   )
   if (!rows.length) throw Object.assign(new Error('登录已过期'), { status: 401 })
   const user = rows[0]
   user.roles = user.roles ? user.roles.split(',') : []
   if (expectedRole && !user.roles.includes(expectedRole)) throw Object.assign(new Error('无权访问该资源'), { status: 403 })
-  await db.execute('UPDATE auth_sessions SET last_used_at = NOW(3) WHERE token_hash = ?', [tokenHash(token)])
+  await db.query('UPDATE auth_sessions SET last_used_at = NOW(3) WHERE token_hash = ?', [tokenHash(token)])
   return user
 }
 async function authenticate(account, password) {
   const normalized = String(account || '').replace(/\s/g, '')
   if (!normalized || !password) throw Object.assign(new Error('请输入账号和密码'), { status: 400 })
-  const [[user]] = await db.execute('SELECT id, phone, login_name, password_hash FROM users WHERE (phone = ? OR login_name = ?) AND account_status = \'ACTIVE\'', [normalized, normalized])
+  const [[user]] = await db.query('SELECT id, phone, login_name, password_hash FROM users WHERE (phone = ? OR login_name = ?) AND account_status = \'ACTIVE\'', [normalized, normalized])
   if (!user || !user.password_hash || user.password_hash !== passwordHash(password)) {
     throw Object.assign(new Error('账号或密码错误'), { status: 401 })
   }
-  const [roleRows] = await db.execute('SELECT role_code, salesman_code FROM user_roles WHERE user_id = ?', [user.id])
+  const [roleRows] = await db.query('SELECT role_code, salesman_code, salesman_type FROM user_roles WHERE user_id = ?', [user.id])
   if (!roleRows.length) throw Object.assign(new Error('该账号尚未分配身份'), { status: 403 })
   const token = await createSession(user.id)
-  return { token, user: { id: user.id, phone: user.phone || user.login_name, roles: roleRows.map(row => row.role_code), defaultRole: roleRows[0].role_code, salesmanId: (roleRows.find(row => row.role_code === 'salesman') || {}).salesman_code || '' } }
+  const salesmanRole = roleRows.find(row => row.role_code === 'salesman') || {}
+  return { token, user: { id: user.id, phone: user.phone || user.login_name, roles: roleRows.map(row => row.role_code), defaultRole: roleRows[0].role_code, salesmanId: salesmanRole.salesman_code || '', salesmanType: salesmanRole.salesman_type || '' } }
 }
 async function registerClient(body) {
   const phone = String(body.phone || '').replace(/\s/g, '')
@@ -136,7 +164,13 @@ function clientApplicationDetail(row) {
     expenseTierText: expenseTierText[row.expense_tier] || '未填写',
     commitments: parseCommitments(row.commitments),
     ruleVersion: row.rule_version,
-    submittedAt: row.screening_submitted_at
+    submittedAt: row.screening_submitted_at,
+    merchant: row.merchant_id ? {
+      id: row.merchant_id,
+      name: row.merchant_name || '',
+      contactName: row.merchant_contact_name || '',
+      contactPhone: row.merchant_contact_phone || ''
+    } : null
   })
 }
 function staffApplicationView(row) {
@@ -161,13 +195,135 @@ async function changeStatus(id, from, to, action, operator, reason, extra = {}) 
 async function customerApplications(req, res) {
   await sessionFor(req, 'customer-service')
   const [rows] = await db.query(
-    `SELECT a.*, f.voucher_remark, f.verification_reason
+    `SELECT a.id, a.phone_snapshot, a.status, a.screening_submitted_at, a.updated_at,
+            m.name AS merchant_name
+       FROM applications a LEFT JOIN merchants m ON m.id = a.merchant_id
+      WHERE a.status = 'PENDING_REVIEW'
+      ORDER BY a.screening_submitted_at ASC`
+  )
+  json(res, 200, { applications: rows.map(row => ({
+    id: row.id,
+    maskedPhone: `${row.phone_snapshot.slice(0, 3)}****${row.phone_snapshot.slice(-4)}`,
+    status: row.status,
+    statusText: statusText[row.status] || '待处理',
+    merchantName: row.merchant_name || '未关联商家',
+    submittedAt: row.screening_submitted_at,
+    updatedAt: row.updated_at
+  })) })
+}
+async function customerApplicationDetail(req, res, id) {
+  await sessionFor(req, 'customer-service')
+  const [[row]] = await db.execute(
+    `SELECT a.*, m.name AS merchant_name, m.contact_name AS merchant_contact_name,
+            m.contact_phone AS merchant_contact_phone
+       FROM applications a LEFT JOIN merchants m ON m.id = a.merchant_id
+      WHERE a.id = ? AND a.status = 'PENDING_REVIEW'`,
+    [id]
+  )
+  if (!row) throw Object.assign(new Error('待审核申请不存在或已被处理'), { status: 404 })
+  json(res, 200, { application: {
+    id: row.id,
+    maskedPhone: `${row.phone_snapshot.slice(0, 3)}****${row.phone_snapshot.slice(-4)}`,
+    phone: row.phone_snapshot,
+    status: row.status,
+    statusText: statusText[row.status] || '待处理',
+    localNumber: row.is_local_number === null ? null : Boolean(row.is_local_number),
+    acceptLocalCard: row.accept_local_card === null ? null : Boolean(row.accept_local_card),
+    attributionProvince: row.attribution_province || '',
+    attributionCity: row.attribution_city || '',
+    expenseTier: row.expense_tier,
+    commitments: parseCommitments(row.commitments),
+    ruleVersion: row.rule_version,
+    submittedAt: row.screening_submitted_at,
+    merchant: row.merchant_id ? {
+      name: row.merchant_name || '',
+      contactName: row.merchant_contact_name || '',
+      contactPhone: row.merchant_contact_phone || ''
+    } : null
+  } })
+}
+async function customerWorkItems(req, res) {
+  await sessionFor(req, 'customer-service')
+  await db.execute(`UPDATE applications SET status = 'PENDING_DISPATCH', updated_at = NOW(3)
+    WHERE status IN ('PENDING_CONTACT','CONTACT_FAILED','PENDING_SERVICE_MODE','PENDING_APPOINTMENT')
+      AND service_mode IN ('HOME_SERVICE','STORE_SERVICE')`)
+  const [rows] = await db.query(
+    `SELECT a.*, f.voucher_remark, f.verification_reason,
+            COALESCE(am.name, m.name) AS merchant_name,
+            COALESCE(s.display_name, s.phone) AS salesman_name
        FROM applications a
        LEFT JOIN fulfillment_submissions f ON f.id = (SELECT id FROM fulfillment_submissions WHERE application_id = a.id ORDER BY submitted_at DESC LIMIT 1)
-      WHERE a.status IN ('PENDING_REVIEW', 'PENDING_CONTACT', 'CONTACT_FAILED', 'PENDING_SERVICE_MODE', 'PENDING_APPOINTMENT', 'PENDING_DISPATCH', 'PENDING_STORE_SERVICE', 'IN_STORE_SERVICE', 'PENDING_VERIFICATION', 'VERIFICATION_RETURNED')
+       LEFT JOIN merchants m ON m.id = a.merchant_id
+       LEFT JOIN merchants am ON am.id = a.assigned_merchant_id
+       LEFT JOIN users s ON s.id = a.assigned_salesman_user_id
+      WHERE a.status IN ('PENDING_CONTACT', 'CONTACT_FAILED', 'PENDING_SERVICE_MODE', 'PENDING_APPOINTMENT',
+                         'PENDING_DISPATCH', 'PENDING_SERVICE', 'IN_SERVICE', 'PENDING_STORE_SERVICE',
+                         'IN_STORE_SERVICE', 'VERIFICATION_RETURNED',
+                         'SERVICE_COMPLETED', 'SERVICE_FAILED', 'CLIENT_DECLINED', 'CLOSED')
       ORDER BY a.updated_at ASC`
   )
-  json(res, 200, { applications: rows.map(staffApplicationView) })
+  json(res, 200, { applications: rows.map(row => Object.assign(staffApplicationView(row), {
+    merchantName: row.merchant_name || '', salesmanName: row.salesman_name || ''
+  })) })
+}
+async function customerSalesmen(req, res) {
+  await sessionFor(req, 'customer-service')
+  const [rows] = await db.execute(
+    `SELECT r.salesman_code AS id, COALESCE(u.display_name, u.phone, r.salesman_code) AS name, u.phone, r.salesman_type AS salesmanType
+       FROM user_roles r JOIN users u ON u.id = r.user_id
+      WHERE r.role_code = 'salesman' AND u.account_status = 'ACTIVE' AND r.salesman_code IS NOT NULL
+      ORDER BY u.display_name, r.salesman_code`
+  )
+  json(res, 200, { salesmen: rows })
+}
+async function customerOutlets(req, res) {
+  await sessionFor(req, 'customer-service')
+  const [rows] = await db.execute("SELECT id, name, contact_name AS contactName, contact_phone AS contactPhone FROM merchants WHERE status = 'ACTIVE' ORDER BY name")
+  json(res, 200, { outlets: rows })
+}
+async function customerVerifications(req, res) {
+  await sessionFor(req, 'customer-service')
+  const [rows] = await db.query(
+    `SELECT a.id, a.phone_snapshot, a.service_mode, a.updated_at, f.submitted_at,
+            COALESCE(u.display_name, u.phone) AS salesman_name,
+            COALESCE(am.name, m.name) AS outlet_name
+       FROM applications a
+       JOIN fulfillment_submissions f ON f.id = (SELECT id FROM fulfillment_submissions WHERE application_id = a.id ORDER BY submitted_at DESC LIMIT 1)
+       LEFT JOIN users u ON u.id = COALESCE(f.submitted_by_user_id, f.salesman_user_id)
+       LEFT JOIN merchants m ON m.id = a.merchant_id
+       LEFT JOIN merchants am ON am.id = a.assigned_merchant_id
+      WHERE a.status = 'PENDING_VERIFICATION'
+      ORDER BY f.submitted_at ASC`
+  )
+  json(res, 200, { verifications: rows.map(row => ({
+    id: row.id, maskedPhone: `${row.phone_snapshot.slice(0, 3)}****${row.phone_snapshot.slice(-4)}`,
+    serviceMode: row.service_mode, salesmanName: row.salesman_name || '', outletName: row.outlet_name || '',
+    submittedAt: row.submitted_at, updatedAt: row.updated_at
+  })) })
+}
+async function customerVerificationDetail(req, res, id) {
+  await sessionFor(req, 'customer-service')
+  const [[row]] = await db.query(
+    `SELECT a.*, f.identity_verified, f.voucher_remark, f.submitted_at AS fulfillment_submitted_at,
+            COALESCE(u.display_name, u.phone) AS salesman_name, ur.salesman_code, ur.salesman_type,
+            COALESCE(am.name, m.name) AS outlet_name
+       FROM applications a
+       JOIN fulfillment_submissions f ON f.id = (SELECT id FROM fulfillment_submissions WHERE application_id = a.id ORDER BY submitted_at DESC LIMIT 1)
+       LEFT JOIN users u ON u.id = COALESCE(f.submitted_by_user_id, f.salesman_user_id)
+       LEFT JOIN user_roles ur ON ur.user_id = u.id AND ur.role_code = 'salesman'
+       LEFT JOIN merchants m ON m.id = a.merchant_id
+       LEFT JOIN merchants am ON am.id = a.assigned_merchant_id
+      WHERE a.id = ? AND a.status = 'PENDING_VERIFICATION'`, [id]
+  )
+  if (!row) throw Object.assign(new Error('待核销订单不存在或已处理'), { status: 404 })
+  json(res, 200, { verification: {
+    id: row.id, phone: row.phone_snapshot, serviceMode: row.service_mode,
+    outletName: row.outlet_name || '', salesmanName: row.salesman_name || '',
+    salesmanCode: row.salesman_code || '', salesmanType: row.salesman_type || '',
+    identityVerified: Boolean(row.identity_verified), voucherRemark: row.voucher_remark || '',
+    submittedAt: row.fulfillment_submitted_at, applicationSubmittedAt: row.screening_submitted_at,
+    expenseTier: row.expense_tier
+  } })
 }
 async function customerAction(req, res, id, action) {
   const user = await sessionFor(req, 'customer-service')
@@ -175,11 +331,17 @@ async function customerAction(req, res, id, action) {
   if (action === 'review') {
     const approve = body.decision === 'APPROVE'
     if (!approve && !String(body.reason || '').trim()) throw Object.assign(new Error('驳回时请填写原因'), { status: 400 })
-    await changeStatus(id, 'PENDING_REVIEW', approve ? 'PENDING_CONTACT' : 'REVIEW_REJECTED', approve ? 'REVIEW_APPROVED' : 'REVIEW_REJECTED', user, body.reason)
+    const serviceMode = String(body.serviceMode || '')
+    if (approve && !['HOME_SERVICE', 'STORE_SERVICE'].includes(serviceMode)) throw Object.assign(new Error('请确认上门办理或指定网点办理'), { status: 400 })
+    await changeStatus(id, 'PENDING_REVIEW', approve ? 'PENDING_DISPATCH' : 'REVIEW_REJECTED', approve ? 'REVIEW_APPROVED' : 'REVIEW_REJECTED', user, body.reason)
+    if (approve) await db.execute('UPDATE applications SET service_mode = ? WHERE id = ?', [serviceMode, id])
     await db.execute('INSERT INTO application_reviews (application_id, reviewer_user_id, decision, reason) VALUES (?, ?, ?, ?)', [id, user.id, approve ? 'APPROVE' : 'REJECT', body.reason || null])
   } else if (action === 'contact-result') {
     const result = String(body.result || '')
-    const target = { CONTACTED: 'PENDING_SERVICE_MODE', UNREACHABLE: 'CONTACT_FAILED', CLIENT_DECLINED: 'CLIENT_DECLINED' }[result]
+    const [[application]] = await db.execute('SELECT service_mode FROM applications WHERE id = ?', [id])
+    const contactedTarget = application && application.service_mode === 'HOME_SERVICE' ? 'PENDING_APPOINTMENT'
+      : application && application.service_mode === 'STORE_SERVICE' ? 'PENDING_STORE_SERVICE' : 'PENDING_SERVICE_MODE'
+    const target = { CONTACTED: contactedTarget, UNREACHABLE: 'CONTACT_FAILED', CLIENT_DECLINED: 'CLIENT_DECLINED' }[result]
     if (!target) throw Object.assign(new Error('请选择有效的联系结果'), { status: 400 })
     if (result !== 'CONTACTED' && !String(body.reason || '').trim()) throw Object.assign(new Error('请填写联系结果说明'), { status: 400 })
     await changeStatus(id, 'PENDING_CONTACT', target, `CONTACT_${result}`, user, body.reason)
@@ -199,11 +361,19 @@ async function customerAction(req, res, id, action) {
     await db.execute('UPDATE applications SET appointment_time = ? WHERE id = ?', [body.appointmentTime, id])
     await db.execute('INSERT INTO application_appointments (application_id, appointment_time, confirmed_by_user_id) VALUES (?, ?, ?)', [id, body.appointmentTime, user.id])
   } else if (action === 'dispatch') {
-    const [[salesman]] = await db.execute("SELECT u.id, u.display_name FROM users u JOIN user_roles r ON r.user_id = u.id WHERE r.role_code = 'salesman' AND r.salesman_code = ?", [body.salesmanId])
+    const [[salesman]] = await db.query("SELECT u.id, u.display_name FROM users u JOIN user_roles r ON r.user_id = u.id WHERE r.role_code = 'salesman' AND r.salesman_type = 'HOME_VISIT' AND r.salesman_code = ?", [body.salesmanId])
     if (!salesman) throw Object.assign(new Error('请选择有效的业务员'), { status: 400 })
     await changeStatus(id, 'PENDING_DISPATCH', 'PENDING_SERVICE', 'DISPATCHED', user, null, { salesmanId: body.salesmanId })
     await db.execute('UPDATE applications SET assigned_salesman_user_id = ? WHERE id = ?', [salesman.id, id])
     await db.execute('INSERT INTO application_dispatches (application_id, salesman_user_id, dispatcher_user_id) VALUES (?, ?, ?)', [id, salesman.id, user.id])
+  } else if (action === 'assign-store') {
+    const outletId = Number(body.outletId)
+    const [[outlet]] = await db.execute("SELECT id FROM merchants WHERE id = ? AND status = 'ACTIVE'", [outletId])
+    if (!outlet) throw Object.assign(new Error('请选择有效的指定网点'), { status: 400 })
+    const [[current]] = await db.execute('SELECT status, service_mode FROM applications WHERE id = ?', [id])
+    if (!current || current.status !== 'PENDING_DISPATCH' || current.service_mode !== 'STORE_SERVICE') throw Object.assign(new Error('当前任务不能派遣到网点'), { status: 409 })
+    await changeStatus(id, 'PENDING_DISPATCH', 'PENDING_STORE_SERVICE', 'STORE_ASSIGNED', user, null, { outletId })
+    await db.execute('UPDATE applications SET assigned_merchant_id = ? WHERE id = ?', [outletId, id])
   } else if (action === 'start-store') {
     await changeStatus(id, 'PENDING_STORE_SERVICE', 'IN_STORE_SERVICE', 'STORE_SERVICE_STARTED', user)
   } else if (action === 'submit-store') {
@@ -221,38 +391,52 @@ async function customerAction(req, res, id, action) {
   } else if (action === 'verify') {
     const approve = body.decision === 'APPROVE'
     if (!approve && !String(body.reason || '').trim()) throw Object.assign(new Error('退回时请填写原因'), { status: 400 })
-    await changeStatus(id, 'PENDING_VERIFICATION', approve ? 'SERVICE_COMPLETED' : 'VERIFICATION_RETURNED', approve ? 'FULFILLMENT_VERIFIED' : 'FULFILLMENT_RETURNED', user, body.reason)
+    if (approve && body.customerConfirmed !== true) throw Object.assign(new Error('请先与客户确认业务已办理完成'), { status: 400 })
+    await changeStatus(id, 'PENDING_VERIFICATION', approve ? 'SERVICE_COMPLETED' : 'VERIFICATION_RETURNED', approve ? 'FULFILLMENT_VERIFIED' : 'FULFILLMENT_RETURNED', user, body.reason, { customerConfirmed: approve })
     await db.execute('UPDATE fulfillment_submissions SET verification_status = ?, verification_reason = ?, verifier_user_id = ?, verified_at = NOW(3) WHERE application_id = ? ORDER BY submitted_at DESC LIMIT 1', [approve ? 'APPROVED' : 'RETURNED', body.reason || null, user.id, id])
   } else throw Object.assign(new Error('未知客服操作'), { status: 404 })
   json(res, 200, { ok: true })
 }
 async function salesmanApplications(req, res) {
   const user = await sessionFor(req, 'salesman')
-  const [rows] = await db.execute(
+  const branch = user.salesman_type === 'BRANCH'
+  const [rows] = await db.query(
     `SELECT a.*, f.voucher_remark, f.verification_reason
        FROM applications a LEFT JOIN fulfillment_submissions f ON f.id = (SELECT id FROM fulfillment_submissions WHERE application_id = a.id ORDER BY submitted_at DESC LIMIT 1)
-      WHERE a.assigned_salesman_user_id = ? AND a.status IN ('PENDING_SERVICE', 'IN_SERVICE', 'VERIFICATION_RETURNED', 'PENDING_VERIFICATION')
-      ORDER BY a.appointment_time ASC`, [user.id]
+      WHERE ${branch
+        ? "a.service_mode = 'STORE_SERVICE' AND a.status IN ('PENDING_STORE_SERVICE','IN_STORE_SERVICE','VERIFICATION_RETURNED','PENDING_VERIFICATION') AND (a.assigned_salesman_user_id IS NULL OR a.assigned_salesman_user_id = ?)"
+        : "a.assigned_salesman_user_id = ? AND a.service_mode = 'HOME_SERVICE' AND a.status IN ('PENDING_SERVICE','IN_SERVICE','VERIFICATION_RETURNED','PENDING_VERIFICATION')"}
+      ORDER BY a.appointment_time ASC, a.updated_at ASC`, [user.id]
   )
-  json(res, 200, { applications: rows.map(staffApplicationView) })
+  json(res, 200, { salesmanType: branch ? 'BRANCH' : 'HOME_VISIT', applications: rows.map(staffApplicationView) })
 }
 async function salesmanAction(req, res, id, action) {
   const user = await sessionFor(req, 'salesman')
   const body = await readBody(req)
-  const [[application]] = await db.execute('SELECT assigned_salesman_user_id FROM applications WHERE id = ?', [id])
-  if (!application || application.assigned_salesman_user_id !== user.id) throw Object.assign(new Error('无权操作该申请'), { status: 403 })
+  const branch = user.salesman_type === 'BRANCH'
+  const [[application]] = await db.query('SELECT assigned_salesman_user_id, service_mode, status FROM applications WHERE id = ?', [id])
+  const canClaimBranch = branch && application && application.service_mode === 'STORE_SERVICE' && application.status === 'PENDING_STORE_SERVICE' && application.assigned_salesman_user_id === null
+  if (!application || (!canClaimBranch && application.assigned_salesman_user_id !== user.id)) throw Object.assign(new Error('无权操作该申请'), { status: 403 })
   if (action === 'start') {
-    await changeStatus(id, 'PENDING_SERVICE', 'IN_SERVICE', 'SERVICE_STARTED', user)
+    if (branch) {
+      const [claimed] = await db.query("UPDATE applications SET assigned_salesman_user_id = ? WHERE id = ? AND service_mode = 'STORE_SERVICE' AND status = 'PENDING_STORE_SERVICE' AND assigned_salesman_user_id IS NULL", [user.id, id])
+      if (!claimed.affectedRows && application.assigned_salesman_user_id !== user.id) throw Object.assign(new Error('该网点任务已被其他业务员接手'), { status: 409 })
+      await changeStatus(id, 'PENDING_STORE_SERVICE', 'IN_STORE_SERVICE', 'BRANCH_SERVICE_STARTED', user)
+    } else {
+      if (application.service_mode !== 'HOME_SERVICE') throw Object.assign(new Error('上门型业务员不能处理网点任务'), { status: 403 })
+      await changeStatus(id, 'PENDING_SERVICE', 'IN_SERVICE', 'SERVICE_STARTED', user)
+    }
   } else if (action === 'submit') {
     if (!body.identityVerified) throw Object.assign(new Error('请先确认已完成实名核实'), { status: 400 })
     if (!String(body.voucherRemark || '').trim()) throw Object.assign(new Error('请填写办理凭证说明'), { status: 400 })
-    const [[current]] = await db.execute('SELECT status FROM applications WHERE id = ?', [id])
-    if (!['IN_SERVICE', 'VERIFICATION_RETURNED'].includes(current.status)) throw Object.assign(new Error('当前申请不能提交凭证'), { status: 409 })
+    const [[current]] = await db.query('SELECT status FROM applications WHERE id = ?', [id])
+    const allowed = branch ? ['IN_STORE_SERVICE', 'VERIFICATION_RETURNED'] : ['IN_SERVICE', 'VERIFICATION_RETURNED']
+    if (!allowed.includes(current.status)) throw Object.assign(new Error('当前申请不能提交凭证'), { status: 409 })
     await changeStatus(id, current.status, 'PENDING_VERIFICATION', 'FULFILLMENT_SUBMITTED', user)
-    await db.execute('INSERT INTO fulfillment_submissions (application_id, salesman_user_id, identity_verified, voucher_remark) VALUES (?, ?, 1, ?)', [id, user.id, body.voucherRemark.trim()])
+    await db.query('INSERT INTO fulfillment_submissions (application_id, salesman_user_id, submitted_by_user_id, identity_verified, voucher_remark) VALUES (?, ?, ?, 1, ?)', [id, user.id, user.id, body.voucherRemark.trim()])
   } else if (action === 'fail') {
     if (!String(body.reason || '').trim()) throw Object.assign(new Error('请填写办理失败原因'), { status: 400 })
-    await changeStatus(id, 'IN_SERVICE', 'SERVICE_FAILED', 'HOME_SERVICE_FAILED', user, body.reason)
+    await changeStatus(id, branch ? 'IN_STORE_SERVICE' : 'IN_SERVICE', 'SERVICE_FAILED', branch ? 'BRANCH_SERVICE_FAILED' : 'HOME_SERVICE_FAILED', user, body.reason)
     await db.execute('UPDATE applications SET service_failure_reason = ? WHERE id = ?', [body.reason.trim(), id])
   } else throw Object.assign(new Error('未知业务员操作'), { status: 404 })
   json(res, 200, { ok: true })
@@ -263,16 +447,26 @@ async function submitScreening(req, res) {
   const inviteCode = String(body.source && body.source.inviteCode || '').trim()
   if (!inviteCode) throw Object.assign(new Error('请扫描商家提供的二维码后再提交申请'), { status: 400 })
   const [[invite]] = await db.execute(
-    "SELECT id, merchant_id, source_type FROM merchant_invites WHERE invite_code = ? AND source_type = 'merchant_qr' AND status = 'ACTIVE' AND (expires_at IS NULL OR expires_at > NOW(3))",
-    [inviteCode]
+    `SELECT mi.id, mi.merchant_id, mi.source_type
+       FROM client_entry_sources ces JOIN merchant_invites mi ON mi.id = ces.merchant_invite_id
+      WHERE ces.user_id = ? AND mi.invite_code = ? AND ces.updated_at > DATE_SUB(NOW(3), INTERVAL 2 HOUR)
+        AND mi.source_type = 'merchant_qr' AND mi.status = 'ACTIVE'
+        AND (mi.expires_at IS NULL OR mi.expires_at > NOW(3))`,
+    [user.id, inviteCode]
   )
-  if (!invite) throw Object.assign(new Error('商家二维码无效、已停用或已过期，请重新扫码'), { status: 400 })
+  if (!invite) throw Object.assign(new Error('扫码状态已失效，请重新扫描商家二维码'), { status: 400 })
+  const [[withdrawnApplication]] = await db.execute(
+    "SELECT id FROM applications WHERE client_user_id = ? AND status = 'WITHDRAWN' ORDER BY updated_at DESC LIMIT 1",
+    [user.id]
+  )
+  if (withdrawnApplication) throw Object.assign(new Error('该账号存在已撤回的申请，不能重新提交'), { status: 409 })
   const [[activeApplication]] = await db.execute(`SELECT id FROM applications WHERE client_user_id = ? AND status IN (${Array.from(blockingStatuses).map(() => '?').join(',')}) LIMIT 1`, [user.id, ...blockingStatuses])
   if (activeApplication) throw Object.assign(new Error('已有进行中的申请，请先查看或撤回原申请'), { status: 409 })
   const applicationPhone = String(body.phone || '').replace(/\s/g, '')
   if (!validPhone(applicationPhone)) throw Object.assign(new Error('请输入正确的申请手机号'), { status: 400 })
+  const attribution = await findPhoneAttribution(applicationPhone)
   const commitments = Array.isArray(body.commitments) ? body.commitments : []
-  const localNumber = typeof body.localNumber === 'boolean' ? body.localNumber : null
+  const localNumber = typeof attribution.isLocal === 'boolean' ? attribution.isLocal : (typeof body.localNumber === 'boolean' ? body.localNumber : null)
   const acceptLocalCard = typeof body.acceptLocalCard === 'boolean' ? body.acceptLocalCard : null
   const localOption = localNumber === true ? 'LOCAL_NUMBER' : (acceptLocalCard === true ? 'ACCEPT_LOCAL_CARD' : null)
   const reasons = []
@@ -285,11 +479,12 @@ async function submitScreening(req, res) {
   const status = passed ? 'PENDING_REVIEW' : 'PRE_SCREEN_REJECTED'
   const id = crypto.randomUUID()
   await db.execute(
-    `INSERT INTO applications (id, client_user_id, merchant_id, merchant_invite_id, source_type, phone_snapshot, attribution_status, local_option, is_local_number, accept_local_card, expense_tier, commitments, pre_screen_passed, pre_screen_status, rule_version, status, screening_submitted_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'screening-v3', ?, NOW(3))`,
-    [id, user.id, invite.merchant_id, invite.id, invite.source_type, applicationPhone, localNumber ? 'USER_CONFIRMED_LOCAL' : 'USER_CONFIRMED_NON_LOCAL', localOption, localNumber, acceptLocalCard, body.expenseTier || null, JSON.stringify(commitments), passed ? 1 : 0, status, status]
+    `INSERT INTO applications (id, client_user_id, merchant_id, merchant_invite_id, source_type, phone_snapshot, attribution_status, attribution_province, attribution_city, local_option, is_local_number, accept_local_card, expense_tier, commitments, pre_screen_passed, pre_screen_status, rule_version, status, screening_submitted_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'screening-v4', ?, NOW(3))`,
+    [id, user.id, invite.merchant_id, invite.id, invite.source_type, applicationPhone, attribution.queryStatus, attribution.province || null, attribution.city || null, localOption, localNumber, acceptLocalCard, body.expenseTier || null, JSON.stringify(commitments), passed ? 1 : 0, status, status]
   )
   await db.execute('INSERT INTO application_status_history (application_id, to_status, action_code, operator_user_id, operator_role) VALUES (?, ?, ?, ?, ?)', [id, status, 'PRE_SCREEN_SUBMITTED', user.id, 'client'])
+  await db.execute('DELETE FROM client_entry_sources WHERE user_id = ?', [user.id])
   json(res, 201, { id, status, passed, reasons })
 }
 async function listMyApplications(req, res) {
@@ -297,9 +492,41 @@ async function listMyApplications(req, res) {
   const [rows] = await db.execute('SELECT id, status, appointment_time, refund_status, updated_at FROM applications WHERE client_user_id = ? ORDER BY updated_at DESC', [user.id])
   json(res, 200, { applications: rows.map(applicationView) })
 }
+async function clientEntrySource(req, res) {
+  const user = await sessionFor(req, 'client')
+  await db.execute('DELETE FROM client_entry_sources WHERE user_id = ? AND updated_at <= DATE_SUB(NOW(3), INTERVAL 2 HOUR)', [user.id])
+  if (req.method === 'POST') {
+    const body = await readBody(req)
+    const inviteCode = String(body.inviteCode || '').trim()
+    const [[invite]] = await db.execute(
+      "SELECT id FROM merchant_invites WHERE invite_code = ? AND source_type = 'merchant_qr' AND status = 'ACTIVE' AND (expires_at IS NULL OR expires_at > NOW(3))",
+      [inviteCode]
+    )
+    if (!invite) throw Object.assign(new Error('商家二维码无效、已停用或已过期，请重新扫码'), { status: 400 })
+    await db.execute(
+      'INSERT INTO client_entry_sources (user_id, merchant_invite_id) VALUES (?, ?) ON DUPLICATE KEY UPDATE merchant_invite_id = VALUES(merchant_invite_id), updated_at = NOW(3)',
+      [user.id, invite.id]
+    )
+  }
+  const [[source]] = await db.execute(
+    `SELECT mi.invite_code AS inviteCode, mi.source_type AS sourceType, ces.updated_at AS receivedAt,
+            DATE_ADD(ces.updated_at, INTERVAL 2 HOUR) AS expiresAt
+       FROM client_entry_sources ces JOIN merchant_invites mi ON mi.id = ces.merchant_invite_id
+      WHERE ces.user_id = ? AND ces.updated_at > DATE_SUB(NOW(3), INTERVAL 2 HOUR)
+        AND mi.status = 'ACTIVE' AND (mi.expires_at IS NULL OR mi.expires_at > NOW(3))`,
+    [user.id]
+  )
+  json(res, 200, { source: source || null })
+}
 async function getMyApplication(req, res, id) {
   const user = await sessionFor(req, 'client')
-  const [[row]] = await db.execute('SELECT * FROM applications WHERE id = ? AND client_user_id = ?', [id, user.id])
+  const [[row]] = await db.execute(
+    `SELECT a.*, m.name AS merchant_name, m.contact_name AS merchant_contact_name,
+            m.contact_phone AS merchant_contact_phone
+       FROM applications a LEFT JOIN merchants m ON m.id = a.merchant_id
+      WHERE a.id = ? AND a.client_user_id = ?`,
+    [id, user.id]
+  )
   if (!row) throw Object.assign(new Error('申请不存在'), { status: 404 })
   json(res, 200, { application: clientApplicationDetail(row) })
 }
@@ -319,18 +546,18 @@ async function merchantDashboard(req, res) {
     db.execute(`SELECT COUNT(*) total,
       SUM(status IN ('PENDING_REVIEW','PENDING_CONTACT','CONTACT_FAILED','PENDING_SERVICE_MODE','PENDING_APPOINTMENT','PENDING_DISPATCH','PENDING_SERVICE','IN_SERVICE','PENDING_STORE_SERVICE','IN_STORE_SERVICE','PENDING_VERIFICATION','VERIFICATION_RETURNED')) processing,
       SUM(status = 'SERVICE_COMPLETED') completed
-      FROM applications WHERE merchant_id = ?`, [user.merchant_id]),
+      FROM applications WHERE merchant_id = ? OR assigned_merchant_id = ?`, [user.merchant_id, user.merchant_id]),
     db.execute(`SELECT COALESCE(SUM(commission_amount),0) expected_commission,
       COALESCE(SUM(CASE WHEN status = 'REFUND_POSTED' THEN commission_amount ELSE 0 END),0) settled_commission
       FROM paper_bills WHERE merchant_id = ? AND status <> 'VOIDED'`, [user.merchant_id]),
-    db.execute('SELECT * FROM applications WHERE merchant_id = ? ORDER BY updated_at DESC LIMIT 5', [user.merchant_id])
+    db.execute('SELECT * FROM applications WHERE merchant_id = ? OR assigned_merchant_id = ? ORDER BY updated_at DESC LIMIT 5', [user.merchant_id, user.merchant_id])
   ])
   json(res, 200, { merchant, stats: Object.assign({}, applicationStats, billStats), applications: recentRows.map(staffApplicationView) })
 }
 async function merchantApplications(req, res) {
   const user = await sessionFor(req, 'merchant')
   if (!user.merchant_id) throw Object.assign(new Error('商家账号未绑定门店'), { status: 403 })
-  const [rows] = await db.execute('SELECT * FROM applications WHERE merchant_id = ? ORDER BY updated_at DESC', [user.merchant_id])
+  const [rows] = await db.execute('SELECT * FROM applications WHERE merchant_id = ? OR assigned_merchant_id = ? ORDER BY updated_at DESC', [user.merchant_id, user.merchant_id])
   json(res, 200, { applications: rows.map(staffApplicationView) })
 }
 async function merchantInviteQr(req, res) {
@@ -397,6 +624,7 @@ function validateManagedAccount(body, role, editing = false) {
   if (!editing && String(body.password || '').length < 6) throw Object.assign(new Error('初始密码不能少于 6 位'), { status: 400 })
   if (body.password && String(body.password).length < 6) throw Object.assign(new Error('新密码不能少于 6 位'), { status: 400 })
   if (role === 'salesman' && !String(body.salesmanCode || '').trim()) throw Object.assign(new Error('请填写业务员工号'), { status: 400 })
+  if (role === 'salesman' && !salesmanTypes.has(String(body.salesmanType || 'HOME_VISIT'))) throw Object.assign(new Error('请选择有效的业务员类型'), { status: 400 })
 }
 
 async function adminAccounts(req, res, role) {
@@ -404,7 +632,7 @@ async function adminAccounts(req, res, role) {
   if (!managedRoles.has(role)) throw Object.assign(new Error('不支持管理该角色'), { status: 400 })
   const [rows] = await db.execute(
     `SELECT u.id, u.phone, u.display_name AS displayName, u.account_status AS accountStatus,
-            ur.role_code AS role, ur.salesman_code AS salesmanCode, ur.merchant_id AS merchantId,
+            ur.role_code AS role, ur.salesman_code AS salesmanCode, ur.salesman_type AS salesmanType, ur.merchant_id AS merchantId,
             m.name AS merchantName, m.contact_name AS contactName, m.contact_phone AS contactPhone,
             u.created_at AS createdAt
        FROM user_roles ur JOIN users u ON u.id = ur.user_id
@@ -438,8 +666,8 @@ async function createManagedAccount(req, res, role) {
       [String(body.phone).trim(), passwordHash(body.password), body.displayName.trim()]
     )
     await connection.execute(
-      'INSERT INTO user_roles (user_id, role_code, merchant_id, salesman_code) VALUES (?, ?, ?, ?)',
-      [userResult.insertId, role, merchantId, role === 'salesman' ? body.salesmanCode.trim() : null]
+      'INSERT INTO user_roles (user_id, role_code, merchant_id, salesman_code, salesman_type) VALUES (?, ?, ?, ?, ?)',
+      [userResult.insertId, role, merchantId, role === 'salesman' ? body.salesmanCode.trim() : null, role === 'salesman' ? String(body.salesmanType || 'HOME_VISIT') : null]
     )
     await connection.execute(
       'INSERT INTO audit_logs (actor_user_id, actor_role, action_code, target_type, target_id, after_data) VALUES (?, ?, ?, ?, ?, ?)',
@@ -478,7 +706,7 @@ async function updateManagedAccount(req, res, role, id) {
     if (role === 'merchant') {
       await connection.execute('UPDATE merchants SET name = ?, contact_name = ?, contact_phone = ?, status = ? WHERE id = ?', [body.displayName.trim(), String(body.contactName || '').trim() || null, String(body.phone).trim(), accountStatus, target.merchant_id])
     } else if (role === 'salesman') {
-      await connection.execute('UPDATE user_roles SET salesman_code = ? WHERE user_id = ? AND role_code = ?', [body.salesmanCode.trim(), id, role])
+      await connection.execute('UPDATE user_roles SET salesman_code = ?, salesman_type = ? WHERE user_id = ? AND role_code = ?', [body.salesmanCode.trim(), String(body.salesmanType || 'HOME_VISIT'), id, role])
     }
     await connection.execute('INSERT INTO audit_logs (actor_user_id, actor_role, action_code, target_type, target_id, after_data) VALUES (?, ?, ?, ?, ?, ?)', [admin.id, 'admin', 'ACCOUNT_UPDATED', 'user', String(id), JSON.stringify({ role, phone: body.phone, displayName: body.displayName })])
     await connection.commit()
@@ -519,6 +747,11 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/v1/auth/register') {
       const body = await readBody(req); return json(res, 201, await registerClient(body))
     }
+    if (req.method === 'GET' && url.pathname === '/v1/phone-attribution') {
+      await sessionFor(req, 'client')
+      return json(res, 200, await findPhoneAttribution(url.searchParams.get('phone')))
+    }
+    if ((req.method === 'GET' || req.method === 'POST') && url.pathname === '/v1/client/entry-source') return await clientEntrySource(req, res)
     if (req.method === 'POST' && url.pathname === '/v1/applications/pre-screen') return await submitScreening(req, res)
     if (req.method === 'GET' && url.pathname === '/v1/applications/me') return await listMyApplications(req, res)
     const clientApplicationMatch = url.pathname.match(/^\/v1\/applications\/([\w-]+)(?:\/(withdraw))?$/)
@@ -536,7 +769,15 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'PUT' && adminAccountMatch) return await updateManagedAccount(req, res, adminAccountMatch[1], adminAccountMatch[2])
     if (req.method === 'DELETE' && adminAccountMatch) return await disableManagedAccount(req, res, adminAccountMatch[1], adminAccountMatch[2])
     if (req.method === 'GET' && url.pathname === '/v1/customer/applications') return await customerApplications(req, res)
-    const customerMatch = url.pathname.match(/^\/v1\/customer\/applications\/([\w-]+)\/(review|contact-result|retry-contact|service-mode|confirm-appointment|dispatch|start-store|submit-store|service-fail|verify)$/)
+    if (req.method === 'GET' && url.pathname === '/v1/customer/work-items') return await customerWorkItems(req, res)
+    if (req.method === 'GET' && url.pathname === '/v1/customer/salesmen') return await customerSalesmen(req, res)
+    if (req.method === 'GET' && url.pathname === '/v1/customer/outlets') return await customerOutlets(req, res)
+    if (req.method === 'GET' && url.pathname === '/v1/customer/verifications') return await customerVerifications(req, res)
+    const customerVerificationMatch = url.pathname.match(/^\/v1\/customer\/verifications\/([\w-]+)$/)
+    if (req.method === 'GET' && customerVerificationMatch) return await customerVerificationDetail(req, res, customerVerificationMatch[1])
+    const customerDetailMatch = url.pathname.match(/^\/v1\/customer\/applications\/([\w-]+)$/)
+    if (req.method === 'GET' && customerDetailMatch) return await customerApplicationDetail(req, res, customerDetailMatch[1])
+    const customerMatch = url.pathname.match(/^\/v1\/customer\/applications\/([\w-]+)\/(review|contact-result|retry-contact|service-mode|confirm-appointment|dispatch|assign-store|start-store|submit-store|service-fail|verify)$/)
     if (req.method === 'POST' && customerMatch) return await customerAction(req, res, customerMatch[1], customerMatch[2])
     if (req.method === 'GET' && url.pathname === '/v1/salesman/applications') return await salesmanApplications(req, res)
     const salesmanMatch = url.pathname.match(/^\/v1\/salesman\/applications\/([\w-]+)\/(start|submit|fail)$/)

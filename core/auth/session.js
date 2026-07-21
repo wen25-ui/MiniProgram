@@ -20,7 +20,7 @@ function getStorage() {
 }
 
 function normalizeSession(session) {
-  if (!session || !session.phone || !Array.isArray(session.roles)) return null
+  if (!session || !session.phone || !Array.isArray(session.roles) || typeof session.token !== 'string' || !session.token) return null
   const roles = session.roles.filter(isKnownRole)
   if (!roles.length) return null
 
@@ -31,7 +31,8 @@ function normalizeSession(session) {
     authenticatedAt: session.authenticatedAt || ''
   }
   if (typeof session.salesmanId === 'string' && session.salesmanId) normalized.salesmanId = session.salesmanId
-  if (typeof session.token === 'string' && session.token) normalized.token = session.token
+  if (typeof session.salesmanType === 'string' && session.salesmanType) normalized.salesmanType = session.salesmanType
+  normalized.token = session.token
   if (Number.isInteger(session.userId) && session.userId > 0) normalized.userId = session.userId
   return normalized
 }

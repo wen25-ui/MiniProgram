@@ -22,6 +22,7 @@
       <view class="process-item"><view class="dot">3</view><text>预约办理</text></view>
     </view>
     <button class="primary-action {{screening ? '' : 'no-progress'}}" bindtap="goScreening">{{screening ? '查看申请资料详情' : hasMerchantInvite ? '继续填写资料' : '扫描商家二维码'}}</button>
+    <button wx:if="{{!screening && hasMerchantInvite}}" class="rescan-action" bindtap="rescanMerchantQr">重新扫描商家二维码</button>
   </view>
 
   <view class="section-head"><text class="section-title">常用服务</text><text class="section-note">便捷办理，一目了然</text></view>

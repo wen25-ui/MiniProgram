@@ -10,6 +10,19 @@ npm install
 DB_HOST=... DB_PORT=3311 DB_NAME=... DB_USER=... DB_PASSWORD=... npm start
 ```
 
+## 手机号归属地数据
+
+导入前先在 PowerShell 中设置数据库密码，然后在 `server` 目录执行：
+
+```powershell
+$env:DB_PASSWORD = '云数据库密码'
+npm run import:phone -- "D:\Project\phone\phone_location\mysql\phone_location.sql"
+```
+
+导入器会过滤非标准 7 位手机号段，先写入临时表并校验数量与唯一性，校验通过后再改名为 `phone_location`。不会删除项目现有业务表。
+
+归属地接口使用纯数字环境变量 `LOCAL_AREA_CODE` 判断本地号码，`start-local.ps1` 默认为成都行政区划代码 `510100`。中文展示名称由 Node.js UTF-8 源码提供，避免 Windows PowerShell 5 的脚本编码导致乱码。
+
 Windows 上可直接运行 `./start-local.ps1`。脚本会配置本地环境、执行数据库迁移并启动 API 服务。
 
 PowerShell 启动指令：

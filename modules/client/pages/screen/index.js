@@ -18,7 +18,7 @@ Page({
       wx.reLaunch({ url: '/pages/auth/register/index' })
       return
     }
-    const source = getEntrySource()
+    const source = getEntrySource(session.userId)
     this.setData({ source, hasMerchantInvite: Boolean(source && source.inviteCode) })
     requestMyApplications(session).then(applications => {
       const existing = applications.find(item => BLOCKING_STATUSES.has(item.status))

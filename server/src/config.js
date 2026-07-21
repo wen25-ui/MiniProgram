@@ -15,6 +15,7 @@ module.exports = {
     password: required('DB_PASSWORD')
   },
   sessionTtlDays: Number(process.env.SESSION_TTL_DAYS || 30),
-  localProvince: process.env.LOCAL_PROVINCE || '广东',
-  localCity: process.env.LOCAL_CITY || '深圳'
+  localProvince: '四川',
+  localCity: '成都',
+  localAreaCode: process.env.LOCAL_AREA_CODE || '510100'
 }

@@ -19,16 +19,35 @@ function salesmanRequest(path, data) {
 function getCustomerServiceApplications() {
   return customerRequest('/v1/customer/applications').then(response => response.applications || [])
 }
-function reviewApplication(id, decision, reason) { return customerRequest(`/v1/customer/applications/${id}/review`, { decision, reason }) }
+function getCustomerServiceApplication(id) {
+  return customerRequest(`/v1/customer/applications/${id}`).then(response => response.application)
+}
+function getCustomerWorkItems() {
+  return customerRequest('/v1/customer/work-items').then(response => response.applications || [])
+}
+function getCustomerSalesmen() {
+  return customerRequest('/v1/customer/salesmen').then(response => response.salesmen || [])
+}
+function getCustomerOutlets() {
+  return customerRequest('/v1/customer/outlets').then(response => response.outlets || [])
+}
+function getCustomerVerifications() {
+  return customerRequest('/v1/customer/verifications').then(response => response.verifications || [])
+}
+function getCustomerVerification(id) {
+  return customerRequest(`/v1/customer/verifications/${id}`).then(response => response.verification)
+}
+function reviewApplication(id, decision, reason, serviceMode) { return customerRequest(`/v1/customer/applications/${id}/review`, { decision, reason, serviceMode }) }
 function recordContactResult(id, result, reason) { return customerRequest(`/v1/customer/applications/${id}/contact-result`, { result, reason }) }
 function retryContact(id) { return customerRequest(`/v1/customer/applications/${id}/retry-contact`, {}) }
 function selectServiceMode(id, serviceMode) { return customerRequest(`/v1/customer/applications/${id}/service-mode`, { serviceMode }) }
 function confirmAppointment(id, appointmentTime) { return customerRequest(`/v1/customer/applications/${id}/confirm-appointment`, { appointmentTime }) }
 function dispatchApplication(id, salesmanId) { return customerRequest(`/v1/customer/applications/${id}/dispatch`, { salesmanId }) }
+function assignStoreApplication(id, outletId) { return customerRequest(`/v1/customer/applications/${id}/assign-store`, { outletId }) }
 function startStoreService(id) { return customerRequest(`/v1/customer/applications/${id}/start-store`, {}) }
 function submitStoreFulfillment(id, voucherRemark) { return customerRequest(`/v1/customer/applications/${id}/submit-store`, { voucherRemark }) }
 function failStoreService(id, reason) { return customerRequest(`/v1/customer/applications/${id}/service-fail`, { reason }) }
-function verifyFulfillment(id, decision, reason) { return customerRequest(`/v1/customer/applications/${id}/verify`, { decision, reason }) }
+function verifyFulfillment(id, decision, reason, customerConfirmed) { return customerRequest(`/v1/customer/applications/${id}/verify`, { decision, reason, customerConfirmed }) }
 function getSalesmanApplications() { return salesmanRequest('/v1/salesman/applications').then(response => response.applications || []) }
 function startService(id) { return salesmanRequest(`/v1/salesman/applications/${id}/start`, {}) }
 function submitFulfillment(id, identityVerified, voucherRemark) { return salesmanRequest(`/v1/salesman/applications/${id}/submit`, { identityVerified, voucherRemark }) }
@@ -36,12 +55,19 @@ function failHomeService(id, reason) { return salesmanRequest(`/v1/salesman/appl
 
 module.exports = {
   getCustomerServiceApplications,
+  getCustomerServiceApplication,
+  getCustomerWorkItems,
+  getCustomerSalesmen,
+  getCustomerOutlets,
+  getCustomerVerifications,
+  getCustomerVerification,
   reviewApplication,
   recordContactResult,
   retryContact,
   selectServiceMode,
   confirmAppointment,
   dispatchApplication,
+  assignStoreApplication,
   startStoreService,
   submitStoreFulfillment,
   failStoreService,

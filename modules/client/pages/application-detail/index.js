@@ -4,7 +4,8 @@ const { request } = require('../../../../services/api-client')
 
 const COMMITMENT_LABELS = {
   legacy: ['三年内不销户', '三年内不转网', '三年内不换号', '三年内不改基础套餐'],
-  'screening-v3': ['三年内不销户', '三年内不转网', '三年内不降套餐']
+  'screening-v3': ['三年内不销户', '三年内不转网', '三年内不降套餐'],
+  'screening-v4': ['三年内不销户', '三年内不转网', '三年内不降套餐']
 }
 
 function yesNo(value, emptyText = '无需选择') {

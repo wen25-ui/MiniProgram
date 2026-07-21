@@ -53,6 +53,30 @@ async function ensureLoginName() {
   await db.query('ALTER TABLE users MODIFY COLUMN phone VARCHAR(20) NULL, ADD COLUMN login_name VARCHAR(64) NULL AFTER phone, ADD UNIQUE KEY uk_users_login_name (login_name)')
 }
 
+async function ensureSalesmanType() {
+  const columns = await columnNames('user_roles')
+  if (!columns.has('salesman_type')) {
+    await db.query("ALTER TABLE user_roles ADD COLUMN salesman_type VARCHAR(32) NULL AFTER salesman_code")
+  }
+  await db.query("UPDATE user_roles SET salesman_type = 'HOME_VISIT' WHERE role_code = 'salesman' AND salesman_type IS NULL")
+}
+
+async function ensureClientEntrySources() {
+  await db.query(`CREATE TABLE IF NOT EXISTS client_entry_sources (
+    user_id BIGINT UNSIGNED NOT NULL PRIMARY KEY,
+    merchant_invite_id BIGINT UNSIGNED NOT NULL,
+    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+    CONSTRAINT fk_client_entry_source_user FOREIGN KEY (user_id) REFERENCES users(id),
+    CONSTRAINT fk_client_entry_source_invite FOREIGN KEY (merchant_invite_id) REFERENCES merchant_invites(id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci`)
+}
+
+async function ensureAssignedMerchant() {
+  const columns = await columnNames()
+  if (columns.has('assigned_merchant_id')) return
+  await db.query('ALTER TABLE applications ADD COLUMN assigned_merchant_id BIGINT UNSIGNED NULL AFTER merchant_id, ADD KEY idx_applications_assigned_merchant (assigned_merchant_id), ADD CONSTRAINT fk_applications_assigned_merchant FOREIGN KEY (assigned_merchant_id) REFERENCES merchants(id)')
+}
+
 async function ensureServiceFlow() {
   const columns = await columnNames()
   const additions = []
@@ -94,6 +118,9 @@ async function run() {
   await ensureWithdrawnStatus()
   await ensureAdminRole()
   await ensureLoginName()
+  await ensureSalesmanType()
+  await ensureClientEntrySources()
+  await ensureAssignedMerchant()
   console.log('Database migrations are up to date.')
   await db.end()
 }

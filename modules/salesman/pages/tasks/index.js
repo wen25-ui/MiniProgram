@@ -3,7 +3,7 @@ const { ROLES } = require('../../../../core/auth/roles')
 const { getSalesmanApplications, startService, submitFulfillment, failHomeService } = require('../../../../services/client-application-service')
 
 Page({
-  data: { applications: [], verified: {}, remarks: {}, failureReasons: {}, message: '' },
+  data: { applications: [], verified: {}, remarks: {}, failureReasons: {}, message: '', session: {} },
   onShow() {
     const session = getSession()
     if (!session || !hasRole(session, ROLES.SALESMAN)) {
@@ -11,6 +11,7 @@ Page({
       return
     }
     this.session = session
+    this.setData({ session })
     this.refresh()
   },
   refresh() {

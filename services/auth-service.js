@@ -9,6 +9,7 @@ function saveAuthenticatedSession(response) {
     userId: response.user.id,
     token: response.token,
     salesmanId: response.user.salesmanId,
+    salesmanType: response.user.salesmanType,
     authenticatedAt: new Date().toISOString()
   })
 }

@@ -12,15 +12,24 @@ Page({
   data: {
     stage: 'phone', stageNumber: 1, phone: '', localNumber: '', acceptLocalCard: '',
     expenseTiers: EXPENSE_TIERS, expenseTier: '', attributionLoading: false,
-    attributionMessage: '', attributionLocation: '', result: null, source: null,
+    attributionMessage: '', attributionLocation: '', eligibleCity: '成都', result: null, source: null,
     hasMerchantInvite: false, submitting: false
   },
   onLoad() {
     const session = getSession()
     if (!session || session.defaultRole !== ROLES.CLIENT) return wx.reLaunch({ url: '/pages/auth/register/index' })
-    const source = getEntrySource()
+    const source = getEntrySource(session.userId)
     this.setData({ source, hasMerchantInvite: Boolean(source && source.inviteCode) })
     requestMyApplications(session).then(applications => {
+      const withdrawn = applications.find(item => item.status === 'WITHDRAWN')
+      if (withdrawn) {
+        return wx.showModal({
+          title: '无法重新申请',
+          content: '该账号存在已撤回的申请，根据当前规则不能重新提交。',
+          showCancel: false,
+          success: () => wx.redirectTo({ url: `/modules/client/pages/application-detail/index?id=${withdrawn.id}` })
+        })
+      }
       const existing = applications.find(item => BLOCKING.has(item.status))
       if (existing) return wx.redirectTo({ url: `/modules/client/pages/application-detail/index?id=${existing.id}` })
       if (source && source.inviteCode) return
@@ -38,8 +47,8 @@ Page({
     if (!validateMainlandMobile(this.data.phone)) return this.showError('请输入正确的 11 位手机号')
     this.setData({ attributionLoading: true, result: null })
     queryPhoneAttribution(this.data.phone).then(data => {
-      const location = [data.province, data.city].filter(Boolean).join(' ')
-      const common = { attributionLoading: false, attributionMessage: data.message || '', attributionLocation: location }
+      const location = [data.province, data.city, data.isp].filter(Boolean).join(' ')
+      const common = { attributionLoading: false, attributionMessage: data.message || '', attributionLocation: location, eligibleCity: data.eligibleCity || '成都' }
       if (data.isLocal === true) return this.setData(Object.assign(common, { localNumber: 'YES', stage: 'tier', stageNumber: 2 }))
       if (data.isLocal === false) return this.setData(Object.assign(common, { localNumber: 'NO', stage: 'local-card', stageNumber: 2 }))
       this.setData(Object.assign(common, { stage: 'local', stageNumber: 1 }))

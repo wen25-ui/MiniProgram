@@ -1,4 +1,5 @@
 const ENTRY_SOURCE_KEY = 'business_referral_entry_source_v2'
+const ENTRY_SOURCE_TTL_MS = 2 * 60 * 60 * 1000
 let memorySource = null
 
 function decode(value) {
@@ -42,24 +43,42 @@ function parseScannedEntry(scanResult = {}) {
   return null
 }
 
-function saveEntrySource(source) {
+function saveEntrySource(source, userId) {
+  const value = source && Number.isInteger(userId) && userId > 0
+    ? Object.assign({}, source, { userId })
+    : source
   if (typeof wx !== 'undefined' && wx.setStorageSync) {
-    wx.setStorageSync(ENTRY_SOURCE_KEY, source)
+    wx.setStorageSync(ENTRY_SOURCE_KEY, value)
   } else {
-    memorySource = source
+    memorySource = value
   }
 }
 
-function getEntrySource() {
+function getEntrySource(userId) {
+  let source
   if (typeof wx !== 'undefined' && wx.getStorageSync) {
-    return wx.getStorageSync(ENTRY_SOURCE_KEY) || null
+    source = wx.getStorageSync(ENTRY_SOURCE_KEY) || null
+  } else {
+    source = memorySource
   }
-  return memorySource
+  const receivedAt = source && new Date(source.receivedAt).getTime()
+  if (receivedAt && Date.now() - receivedAt >= ENTRY_SOURCE_TTL_MS) {
+    clearEntrySource()
+    return null
+  }
+  if (!source || !userId || !source.userId || source.userId === userId) return source
+  return null
+}
+
+function clearEntrySource() {
+  if (typeof wx !== 'undefined' && wx.removeStorageSync) wx.removeStorageSync(ENTRY_SOURCE_KEY)
+  memorySource = null
 }
 
 module.exports = {
   parseEntryOptions,
   parseScannedEntry,
   saveEntrySource,
-  getEntrySource
+  getEntrySource,
+  clearEntrySource
 }

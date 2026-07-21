@@ -10,7 +10,7 @@ function queryPhoneAttribution(phone) {
 
   const session = getSession()
   if (!session || !session.token) return Promise.reject(new Error('请先登录'))
-  return request(`/v1/phone-attribution?phone=${encodeURIComponent(normalizedPhone)}`, { session })
+  return request(`/v1/phone-attribution?phone=${encodeURIComponent(normalizedPhone)}&_=${Date.now()}`, { session })
 }
 
 module.exports = {

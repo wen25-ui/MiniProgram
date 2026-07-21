@@ -32,12 +32,9 @@ if ($listenerProcessIds.Count -gt 0) {
 $env:DB_HOST = if ($env:DB_HOST) { $env:DB_HOST } else { 'mysql6.sqlpub.com' }
 $env:DB_PORT = if ($env:DB_PORT) { $env:DB_PORT } else { '3311' }
 $env:DB_NAME = if ($env:DB_NAME) { $env:DB_NAME } else { 'wx_xcxkf' }
-$env:LOCAL_PROVINCE = if ($env:LOCAL_PROVINCE) { $env:LOCAL_PROVINCE } else { '广东' }
-$env:LOCAL_CITY = if ($env:LOCAL_CITY) { $env:LOCAL_CITY } else { '深圳' }
+$env:LOCAL_AREA_CODE = '510100'
 $env:DB_USER = if ($env:DB_USER) { $env:DB_USER } else { 'gongbw' }
-if (-not $env:DB_PASSWORD) {
-  throw 'DB_PASSWORD is required. Set it in the current PowerShell session before starting the API.'
-}
+$env:DB_PASSWORD = if ($env:DB_PASSWORD) { $env:DB_PASSWORD } else { 'szeyQss5AIaYPfdx' }
 
 if (-not (Test-Path 'node_modules')) {
   npm install

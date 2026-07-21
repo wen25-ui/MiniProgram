@@ -1,1 +1,15 @@
-<view class="page"><view class="hero"><view><text class="eyebrow">客服工作台</text><text class="hero-title">审核与履约协同</text><text class="hero-desc">处理资格复审、预约、派单和凭证核销</text></view><view class="hero-icon">服</view></view><text wx:if="{{message}}" class="message">{{message}}</text><view class="stats-grid"><view class="stat-card"><view class="dot review"></view><text class="value">{{stats.review}}</text><text>待资格复审</text></view><view class="stat-card"><view class="dot appointment"></view><text class="value">{{stats.appointment}}</text><text>待确认预约</text></view><view class="stat-card"><view class="dot dispatch"></view><text class="value">{{stats.dispatch}}</text><text>待派单</text></view><view class="stat-card"><view class="dot verify"></view><text class="value">{{stats.verify}}</text><text>待核销</text></view></view><button class="workspace-button" bindtap="goReview">进入客服处理中心</button><view class="section-head"><text>最近待办</text><text bindtap="goReview">处理全部 ›</text></view><view wx:if="{{applications.length}}" class="list"><view wx:for="{{applications}}" wx:key="id" class="row"><view class="avatar">{{index+1}}</view><view class="main"><text>{{item.maskedPhone}}</text><text>{{item.id}}</text></view><text class="status">{{item.statusText}}</text></view></view><view wx:else class="empty">当前没有客服待办事项</view><role-bottom-nav role="customer-service" current="home"></role-bottom-nav></view>
+<view class="page">
+  <view class="hero"><view><text class="eyebrow">客服工作台</text><text class="hero-title">审核与履约协同</text><text class="hero-desc">处理资格复审、预约、派单和凭证核销</text></view><view class="hero-icon">服</view></view>
+  <text wx:if="{{message}}" class="message">{{message}}</text>
+  <view class="stats-grid">
+    <view class="stat-card"><view class="dot review"></view><text class="value">{{stats.review}}</text><text>待资格复审</text></view>
+    <view class="stat-card"><view class="dot appointment"></view><text class="value">{{stats.appointment}}</text><text>待联系预约</text></view>
+    <view class="stat-card"><view class="dot dispatch"></view><text class="value">{{stats.dispatch}}</text><text>待派单</text></view>
+    <view class="stat-card"><view class="dot verify"></view><text class="value">{{stats.verify}}</text><text>待核销</text></view>
+  </view>
+  <view style="margin-top:22rpx;display:flex;gap:16rpx"><button class="workspace-button" style="flex:1;margin:0;font-size:24rpx" bindtap="goReview">进入申请审核</button><button class="workspace-button" style="flex:1;margin:0;background:#16777f;font-size:24rpx" bindtap="goDispatch">进入任务派遣</button></view>
+  <view class="section-head"><text>最近待办</text><text bindtap="goDispatch">处理全部 ›</text></view>
+  <view wx:if="{{applications.length}}" class="list"><view wx:for="{{applications}}" wx:key="id" class="row"><view class="avatar">{{index+1}}</view><view class="main"><text>{{item.maskedPhone}}</text><text>{{item.id}}</text></view><text class="status">{{item.statusText}}</text></view></view>
+  <view wx:else class="empty">当前没有客服待办事项</view>
+  <role-bottom-nav role="customer-service" current="home"></role-bottom-nav>
+</view>

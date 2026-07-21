@@ -1,0 +1,44 @@
+<!-- 客服申请审核详情 -->
+<view class="page">
+  <view wx:if="{{loading}}" class="state-card"><view class="loading-ring"></view><text>正在读取申请问卷…</text></view>
+  <view wx:elif="{{message && !application}}" class="state-card error"><text>{{message}}</text></view>
+
+  <block wx:elif="{{application}}">
+    <view class="status-card"><view><text class="eyebrow">申请核实</text><text class="status-title">{{application.statusText}}</text><text class="status-desc">请根据客户填写内容确认信息是否属实</text></view><view class="status-icon">审</view></view>
+
+    <view class="detail-card">
+      <view class="card-title">客户与申请</view>
+      <view class="detail-row"><text class="label">客户手机号</text><text class="value">{{application.phone}}</text></view>
+      <view class="detail-row"><text class="label">申请编号</text><text class="value small">{{application.id}}</text></view>
+      <view class="detail-row"><text class="label">提交时间</text><text class="value">{{application.submittedAt}}</text></view>
+    </view>
+
+    <view wx:if="{{application.merchant}}" class="detail-card merchant-card">
+      <view class="card-title">扫码商家</view>
+      <view class="detail-row"><text class="label">商家名称</text><text class="value">{{application.merchant.name || '未填写'}}</text></view>
+      <view class="detail-row"><text class="label">联系人</text><text class="value">{{application.merchant.contactName || '未填写'}}</text></view>
+      <view class="detail-row"><text class="label">联系电话</text><text class="value">{{application.merchant.contactPhone || '未填写'}}</text></view>
+    </view>
+
+    <view class="detail-card">
+      <view class="card-title">客户填写问卷</view>
+      <view class="detail-row"><text class="label">号码归属地</text><text class="value">{{application.attributionText}}</text></view>
+      <view class="detail-row"><text class="label">是否本地号码</text><text class="value answer">{{application.localNumberText}}</text></view>
+      <view wx:if="{{application.localNumber === false}}" class="detail-row"><text class="label">接受办理本地卡</text><text class="value answer">{{application.acceptLocalCardText}}</text></view>
+      <view class="detail-row"><text class="label">套餐档位</text><text class="value answer">{{application.expenseText}}</text></view>
+      <view class="commitment-title">三年履约承诺</view>
+      <view wx:for="{{commitments}}" wx:key="label" class="commitment-row"><text class="check {{item.accepted ? 'accepted' : ''}}">{{item.accepted ? '✓' : '!'}}</text><text>{{item.label}}</text><text class="commitment-value">{{item.accepted ? '已确认' : '未确认'}}</text></view>
+    </view>
+
+    <view class="review-card">
+      <view class="card-title">核实结论</view>
+      <text style="display:block;margin-top:20rpx;color:#53667a;font-size:24rpx;font-weight:600">确认办理方式</text>
+      <view style="margin-top:14rpx;display:flex;gap:14rpx"><view class="mode-option {{serviceMode==='HOME_SERVICE'?'selected':''}}" style="flex:1;padding:20rpx 16rpx;border:2rpx solid {{serviceMode==='HOME_SERVICE'?'#0f8d93':'#e1e7ed'}};border-radius:16rpx;background:{{serviceMode==='HOME_SERVICE'?'#eaf8f7':'#f9fbfc'}}" data-mode="HOME_SERVICE" bindtap="chooseServiceMode"><text style="display:block;color:#0f7f89;font-size:24rpx;font-weight:700">上门办理</text><text style="display:block;margin-top:6rpx;color:#8b98a7;font-size:18rpx">预约时间后派遣业务员</text></view><view class="mode-option {{serviceMode==='STORE_SERVICE'?'selected':''}}" style="flex:1;padding:20rpx 16rpx;border:2rpx solid {{serviceMode==='STORE_SERVICE'?'#0f8d93':'#e1e7ed'}};border-radius:16rpx;background:{{serviceMode==='STORE_SERVICE'?'#eaf8f7':'#f9fbfc'}}" data-mode="STORE_SERVICE" bindtap="chooseServiceMode"><text style="display:block;color:#0f7f89;font-size:24rpx;font-weight:700">指定网点办理</text><text style="display:block;margin-top:6rpx;color:#8b98a7;font-size:18rpx">前往扫码商家对应网点</text></view></view>
+      <text class="review-tip">如问卷内容与客户实际情况不符，请填写具体原因后驳回。</text>
+      <textarea class="reason-input" value="{{rejectReason}}" placeholder="填写内容不符或需要客户修改的原因" bindinput="onRejectReasonInput"/>
+      <button class="approve-button" loading="{{submitting}}" disabled="{{submitting || !serviceMode}}" bindtap="approve">确认无误并提交办理方式</button>
+      <button class="reject-button" disabled="{{submitting}}" bindtap="reject">内容有误，驳回申请</button>
+    </view>
+    <text wx:if="{{message}}" class="message">{{message}}</text>
+  </block>
+</view>

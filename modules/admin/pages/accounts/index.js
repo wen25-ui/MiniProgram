@@ -9,7 +9,7 @@ const TABS = [
 ]
 
 function emptyForm() {
-  return { id: '', displayName: '', contactName: '', phone: '', salesmanCode: '', password: '', accountStatus: 'ACTIVE' }
+  return { id: '', displayName: '', contactName: '', phone: '', salesmanCode: '', salesmanType: 'HOME_VISIT', password: '', accountStatus: 'ACTIVE' }
 }
 
 Page({
@@ -32,10 +32,11 @@ Page({
   editAccount(event) {
     const item = this.data.accounts.find(entry => String(entry.id) === String(event.currentTarget.dataset.id))
     if (!item) return
-    this.setData({ showForm: true, editing: true, form: { id: item.id, displayName: item.merchantName || item.displayName || '', contactName: item.contactName || '', phone: item.phone || '', salesmanCode: item.salesmanCode || '', password: '', accountStatus: item.accountStatus || 'ACTIVE' }, message: '' })
+    this.setData({ showForm: true, editing: true, form: { id: item.id, displayName: item.merchantName || item.displayName || '', contactName: item.contactName || '', phone: item.phone || '', salesmanCode: item.salesmanCode || '', salesmanType: item.salesmanType || 'HOME_VISIT', password: '', accountStatus: item.accountStatus || 'ACTIVE' }, message: '' })
   },
   input(event) { this.setData({ [`form.${event.currentTarget.dataset.field}`]: event.detail.value }) },
   changeStatus(event) { this.setData({ 'form.accountStatus': event.detail.value ? 'ACTIVE' : 'DISABLED' }) },
+  changeSalesmanType(event) { this.setData({ 'form.salesmanType': event.detail.value }) },
   cancelForm() { this.setData({ showForm: false, form: emptyForm(), message: '' }) },
   save() {
     if (this.data.saving) return
