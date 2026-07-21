@@ -20,6 +20,17 @@
 5. 优先小范围修改。
 6. 完成任务后说明修改文件。
 
+## Codex上下文规则
+
+开发任务开始前优先读取：
+
+- .codex/context.md
+- .codex/workflow.md
+- PROJECT_MAP.md
+- CODE_INDEX.md
+
+根据 docs 目录中的模块文档理解业务。
+
 ## 模块划分
 
 - client：客户业务
