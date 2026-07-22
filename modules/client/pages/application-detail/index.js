@@ -1,6 +1,8 @@
 const { getSession } = require('../../../../core/auth/session')
 const { ROLES } = require('../../../../core/auth/roles')
 const { request } = require('../../../../services/api-client')
+const { clearEntrySource } = require('../../../../core/router/entry-source')
+const { clearQualificationDraft } = require('../../../../core/client/qualification-draft')
 
 const COMMITMENT_LABELS = {
   legacy: ['三年内不销户', '三年内不转网', '三年内不换号', '三年内不改基础套餐'],
@@ -55,6 +57,8 @@ Page({
         const session = getSession()
         this.setData({ withdrawing: true })
         request(`/v1/applications/${this.data.id}/withdraw`, { method: 'POST', session, data: {} }).then(() => {
+          clearEntrySource()
+          clearQualificationDraft()
           wx.showToast({ title: '申请已撤回', icon: 'success' })
           this.setData({ withdrawing: false })
           this.loadDetail()

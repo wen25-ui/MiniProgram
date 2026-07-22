@@ -5,8 +5,9 @@ const { validateMainlandMobile } = require('../../../../domain/identity/phone')
 const { EXPENSE_TIERS } = require('../../../../domain/screening/pre-screen')
 const { queryPhoneAttribution } = require('../../../../services/phone-service')
 const { submitClientScreening } = require('../../../../services/client-screening-service')
+const { saveQualificationDraft, getQualificationDraft, clearQualificationDraft } = require('../../../../core/client/qualification-draft')
 
-const BLOCKING = new Set(['PENDING_REVIEW', 'PENDING_CONTACT', 'CONTACT_FAILED', 'PENDING_SERVICE_MODE', 'PENDING_APPOINTMENT', 'PENDING_DISPATCH', 'PENDING_SERVICE', 'IN_SERVICE', 'PENDING_STORE_SERVICE', 'IN_STORE_SERVICE', 'PENDING_VERIFICATION', 'VERIFICATION_RETURNED'])
+const BLOCKING = new Set(['PENDING', 'CONTACTING', 'VERIFYING', 'VERIFIED', 'INVALID_INFO', 'CORRECTING', 'CONFIRMED', 'DISPATCHING', 'ASSIGNED', 'PROCESSING', 'PENDING_VERIFICATION', 'VERIFICATION_RETURNED', 'PENDING_REVIEW', 'PENDING_CONTACT', 'CONTACT_FAILED', 'PENDING_SERVICE_MODE', 'PENDING_APPOINTMENT', 'PENDING_DISPATCH', 'PENDING_SERVICE', 'IN_SERVICE', 'PENDING_STORE_SERVICE', 'IN_STORE_SERVICE'])
 
 Page({
   data: {
@@ -19,7 +20,13 @@ Page({
     const session = getSession()
     if (!session || session.defaultRole !== ROLES.CLIENT) return wx.reLaunch({ url: '/pages/auth/register/index' })
     const source = getEntrySource(session.userId)
-    this.setData({ source, hasMerchantInvite: Boolean(source && source.inviteCode) })
+    const draft = source && getQualificationDraft(session.userId, source.inviteCode)
+    this.setData(Object.assign({ source, hasMerchantInvite: Boolean(source && source.inviteCode) }, draft ? {
+      stage: draft.stage, stageNumber: draft.stageNumber, phone: draft.phone,
+      localNumber: draft.localNumber, acceptLocalCard: draft.acceptLocalCard,
+      expenseTier: draft.expenseTier, attributionMessage: draft.attributionMessage,
+      attributionLocation: draft.attributionLocation, eligibleCity: draft.eligibleCity
+    } : {}))
     requestMyApplications(session).then(applications => {
       const existing = applications.find(item => BLOCKING.has(item.status))
       if (existing) return wx.redirectTo({ url: `/modules/client/pages/application-detail/index?id=${existing.id}` })
@@ -69,12 +76,28 @@ Page({
       acceptLocalCard: this.data.localNumber === 'NO' ? this.data.acceptLocalCard === 'YES' : null,
       expenseTier: this.data.expenseTier, commitments: [true, true, true], commitmentAccepted: true,
       source: { inviteCode: source.inviteCode || '' }
-    }).then(result => this.setData({ result, submitting: false, stage: result.passed ? 'success' : 'end' }))
+    }).then(result => {
+      clearQualificationDraft()
+      this.setData({ result, submitting: false, stage: result.passed ? 'success' : 'end' })
+    })
       .catch(error => this.setData({ submitting: false, stage: 'end', result: { passed: false, reasons: [error.message] } }))
   },
-  restart() { this.setData({ stage: 'phone', stageNumber: 1, phone: '', localNumber: '', acceptLocalCard: '', expenseTier: '', attributionMessage: '', attributionLocation: '', result: null }) },
+  restart() { clearQualificationDraft(); this.setData({ stage: 'phone', stageNumber: 1, phone: '', localNumber: '', acceptLocalCard: '', expenseTier: '', attributionMessage: '', attributionLocation: '', result: null }) },
   backHome() { wx.reLaunch({ url: '/modules/client/pages/home/index' }) },
-  onUnload() { if (this.queryTimer) clearTimeout(this.queryTimer) }
+  onUnload() {
+    if (this.queryTimer) clearTimeout(this.queryTimer)
+    const source = this.data.source || {}
+    const session = getSession()
+    const hasProgress = Boolean(this.data.phone || this.data.localNumber || this.data.acceptLocalCard || this.data.expenseTier)
+    if (!this.data.submitting && !this.data.result && hasProgress && session && source.inviteCode) {
+      saveQualificationDraft({
+        userId: session.userId, inviteCode: source.inviteCode, stage: this.data.stage, stageNumber: this.data.stageNumber,
+        phone: this.data.phone, localNumber: this.data.localNumber, acceptLocalCard: this.data.acceptLocalCard,
+        expenseTier: this.data.expenseTier, attributionMessage: this.data.attributionMessage,
+        attributionLocation: this.data.attributionLocation, eligibleCity: this.data.eligibleCity
+      })
+    }
+  }
 })
 
 function requestMyApplications(session) {

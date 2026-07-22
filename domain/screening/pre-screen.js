@@ -30,7 +30,7 @@ function evaluatePreScreen(application) {
 
   return {
     passed: reasons.length === 0,
-    status: reasons.length === 0 ? ORDER_STATUS.PENDING_REVIEW : ORDER_STATUS.PRE_SCREEN_REJECTED,
+    status: reasons.length === 0 ? ORDER_STATUS.PENDING : ORDER_STATUS.PRE_SCREEN_REJECTED,
     reasons,
     // 返现映射与完整淘汰规则尚未确认，不能由前端给出金额或最终资格结论。
     expectedRefund: null,

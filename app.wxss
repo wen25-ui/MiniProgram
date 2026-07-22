@@ -166,3 +166,11 @@ textarea {
   background: #e8edf5;
   margin: 22rpx 0;
 }
+
+.sticky-filter {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  padding-bottom: 2rpx;
+  background: #f4f7fb;
+}

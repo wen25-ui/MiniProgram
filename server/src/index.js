@@ -9,9 +9,12 @@ const roles = new Set(['client', 'merchant', 'salesman', 'customer-service', 'fi
 const managedRoles = new Set(['merchant', 'salesman', 'customer-service'])
 const salesmanTypes = new Set(['HOME_VISIT', 'BRANCH'])
 const expenseTiers = new Set(['UNDER_79', 'FROM_79', 'FROM_150', 'FROM_250', 'FROM_400'])
-const withdrawableStatuses = new Set(['PENDING_REVIEW', 'PENDING_CONTACT', 'CONTACT_FAILED', 'PENDING_SERVICE_MODE', 'PENDING_APPOINTMENT', 'PENDING_DISPATCH', 'PENDING_STORE_SERVICE'])
-const blockingStatuses = new Set(['PENDING_REVIEW', 'PENDING_CONTACT', 'CONTACT_FAILED', 'PENDING_SERVICE_MODE', 'PENDING_APPOINTMENT', 'PENDING_DISPATCH', 'PENDING_SERVICE', 'IN_SERVICE', 'PENDING_STORE_SERVICE', 'IN_STORE_SERVICE', 'PENDING_VERIFICATION', 'VERIFICATION_RETURNED'])
+const withdrawableStatuses = new Set(['PENDING', 'CONTACTING', 'VERIFYING', 'VERIFIED', 'INVALID_INFO', 'CORRECTING', 'CONFIRMED', 'DISPATCHING', 'PENDING_REVIEW', 'PENDING_CONTACT', 'CONTACT_FAILED', 'PENDING_SERVICE_MODE', 'PENDING_APPOINTMENT', 'PENDING_DISPATCH', 'PENDING_STORE_SERVICE'])
+const blockingStatuses = new Set(['PENDING', 'CONTACTING', 'VERIFYING', 'VERIFIED', 'INVALID_INFO', 'CORRECTING', 'CONFIRMED', 'DISPATCHING', 'ASSIGNED', 'PROCESSING', 'PENDING_VERIFICATION', 'VERIFICATION_RETURNED', 'PENDING_REVIEW', 'PENDING_CONTACT', 'CONTACT_FAILED', 'PENDING_SERVICE_MODE', 'PENDING_APPOINTMENT', 'PENDING_DISPATCH', 'PENDING_SERVICE', 'IN_SERVICE', 'PENDING_STORE_SERVICE', 'IN_STORE_SERVICE'])
 const statusText = {
+  PENDING: '待审核', CONTACTING: '联系客户', VERIFYING: '信息核实中', VERIFIED: '信息核实完成',
+  INVALID_INFO: '信息异常', CORRECTING: '信息修正中', CONFIRMED: '客户确认办理', CANCELLED: '客户取消',
+  DISPATCHING: '派单中', ASSIGNED: '已派单', PROCESSING: '处理中', COMPLETED: '已完成',
   PRE_SCREEN_REJECTED: '预审待补充', PENDING_REVIEW: '待客服复审', REVIEW_REJECTED: '审核未通过',
   PENDING_CONTACT: '待联系确认', PENDING_APPOINTMENT: '待确认上门时间', PENDING_DISPATCH: '预约已确认',
   CONTACT_FAILED: '暂未联系成功', CLIENT_DECLINED: '客户已放弃', PENDING_SERVICE_MODE: '待确认办理方式',
@@ -20,6 +23,11 @@ const statusText = {
   VERIFICATION_RETURNED: '核销资料待补充', SERVICE_COMPLETED: '服务完成', WITHDRAWN: '已撤回', CLOSED: '已结束'
 }
 const statusDescription = {
+  PENDING: '申请已提交，等待客服审核。', CONTACTING: '客服正在联系客户。', VERIFYING: '客服正在核实客户信息。',
+  VERIFIED: '客户信息已核实，等待确认办理意愿和方式。', INVALID_INFO: '客户提交的信息存在异常。',
+  CORRECTING: '客服正在更正客户信息。', CONFIRMED: '客户已确认办理方式，等待派单。', CANCELLED: '客户已确认不再办理。',
+  DISPATCHING: '正在分配办理网点或工作人员。', ASSIGNED: '任务已分配，等待工作人员处理。',
+  PROCESSING: '工作人员正在处理业务。', COMPLETED: '业务办理已完成。',
   PRE_SCREEN_REJECTED: '申请资料暂未满足资格要求。', PENDING_REVIEW: '申请已提交，正在等待客服复审。',
   REVIEW_REJECTED: '人工复审未通过，可查看详情后撤回申请。', PENDING_CONTACT: '客服将联系您确认办理信息。',
   CONTACT_FAILED: '本次暂未联系成功，客服稍后可再次联系。', CLIENT_DECLINED: '您已放弃本次办理，可重新提交申请。', PENDING_SERVICE_MODE: '请与客服确认上门或营业厅办理。',
@@ -145,6 +153,9 @@ function applicationView(row) {
     statusDescription: statusDescription[row.status] || '申请正在处理中。',
     canWithdraw: withdrawableStatuses.has(row.status),
     appointmentTime: row.appointment_time, serviceMode: row.service_mode,
+    serviceType: row.service_mode === 'STORE_SERVICE' ? 1 : row.service_mode === 'HOME_SERVICE' ? 2 : null,
+    verifyResult: row.verify_result, customerIntention: row.customer_intention,
+    verificationRemark: row.verification_remark, correctedInfo: row.corrected_info,
     contactResult: row.contact_result, contactReason: row.contact_reason,
     serviceFailureReason: row.service_failure_reason, refundStatus: row.refund_status,
     refundText: { NOT_RECORDED: '未登记', PENDING_CONFIRMATION: '待入账确认', REFUND_POSTED: '返现完成入账' }[row.refund_status] || '已登记',
@@ -161,6 +172,13 @@ function clientApplicationDetail(row) {
     localNumber: row.is_local_number === null ? null : Boolean(row.is_local_number),
     acceptLocalCard: row.accept_local_card === null ? null : Boolean(row.accept_local_card),
     expenseTier: row.expense_tier,
+    serviceMode: row.service_mode,
+    verifyResult: row.verify_result,
+    customerIntention: row.customer_intention,
+    verificationRemark: row.verification_remark || '',
+    correctedInfo: row.corrected_info,
+    contactResult: row.contact_result,
+    contactReason: row.contact_reason || '',
     expenseTierText: expenseTierText[row.expense_tier] || '未填写',
     commitments: parseCommitments(row.commitments),
     ruleVersion: row.rule_version,
@@ -184,21 +202,28 @@ function staffApplicationView(row) {
     verification: row.verification_reason ? { reason: row.verification_reason } : null
   })
 }
-async function changeStatus(id, from, to, action, operator, reason, extra = {}) {
-  const [result] = await db.execute('UPDATE applications SET status = ?, updated_at = NOW(3) WHERE id = ? AND status = ?', [to, id, from])
+async function changeStatus(id, from, to, action, operator, reason, extra = {}, executor = db) {
+  const [result] = await executor.execute('UPDATE applications SET status = ?, updated_at = NOW(3) WHERE id = ? AND status = ?', [to, id, from])
   if (!result.affectedRows) throw Object.assign(new Error('申请当前状态不允许该操作'), { status: 409 })
-  await db.execute(
+  await executor.execute(
     'INSERT INTO application_status_history (application_id, from_status, to_status, action_code, reason, operator_user_id, operator_role, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     [id, from, to, action, reason || null, operator.id, operator.roles[0] || null, JSON.stringify(extra)]
+  )
+}
+async function recordStatusEvent(id, status, action, operator, reason, extra = {}, executor = db) {
+  await executor.execute('UPDATE applications SET updated_at = NOW(3) WHERE id = ? AND status = ?', [id, status])
+  await executor.execute(
+    'INSERT INTO application_status_history (application_id, from_status, to_status, action_code, reason, operator_user_id, operator_role, metadata) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [id, status, status, action, reason || null, operator.id, operator.roles[0] || null, JSON.stringify(extra)]
   )
 }
 async function customerApplications(req, res) {
   await sessionFor(req, 'customer-service')
   const [rows] = await db.query(
-    `SELECT a.id, a.phone_snapshot, a.status, a.screening_submitted_at, a.updated_at,
+    `SELECT a.id, a.phone_snapshot, a.status, a.contact_result, a.contact_reason, a.screening_submitted_at, a.updated_at,
             m.name AS merchant_name
        FROM applications a LEFT JOIN merchants m ON m.id = a.merchant_id
-      WHERE a.status = 'PENDING_REVIEW'
+      WHERE a.status IN ('PENDING', 'CONTACTING', 'VERIFYING', 'VERIFIED', 'INVALID_INFO', 'CORRECTING')
       ORDER BY a.screening_submitted_at ASC`
   )
   json(res, 200, { applications: rows.map(row => ({
@@ -206,6 +231,9 @@ async function customerApplications(req, res) {
     maskedPhone: `${row.phone_snapshot.slice(0, 3)}****${row.phone_snapshot.slice(-4)}`,
     status: row.status,
     statusText: statusText[row.status] || '待处理',
+    contactResult: row.contact_result,
+    contactReason: row.contact_reason || '',
+    needsRecontact: row.status === 'CONTACTING' && row.contact_result === 'UNREACHABLE',
     merchantName: row.merchant_name || '未关联商家',
     submittedAt: row.screening_submitted_at,
     updatedAt: row.updated_at
@@ -217,7 +245,7 @@ async function customerApplicationDetail(req, res, id) {
     `SELECT a.*, m.name AS merchant_name, m.contact_name AS merchant_contact_name,
             m.contact_phone AS merchant_contact_phone
        FROM applications a LEFT JOIN merchants m ON m.id = a.merchant_id
-      WHERE a.id = ? AND a.status = 'PENDING_REVIEW'`,
+       WHERE a.id = ? AND a.status IN ('PENDING', 'CONTACTING', 'VERIFYING', 'VERIFIED', 'INVALID_INFO', 'CORRECTING', 'CONFIRMED')`,
     [id]
   )
   if (!row) throw Object.assign(new Error('待审核申请不存在或已被处理'), { status: 404 })
@@ -232,6 +260,13 @@ async function customerApplicationDetail(req, res, id) {
     attributionProvince: row.attribution_province || '',
     attributionCity: row.attribution_city || '',
     expenseTier: row.expense_tier,
+    serviceMode: row.service_mode,
+    verifyResult: row.verify_result,
+    customerIntention: row.customer_intention,
+    verificationRemark: row.verification_remark || '',
+    correctedInfo: row.corrected_info,
+    contactResult: row.contact_result,
+    contactReason: row.contact_reason || '',
     commitments: parseCommitments(row.commitments),
     ruleVersion: row.rule_version,
     submittedAt: row.screening_submitted_at,
@@ -244,9 +279,6 @@ async function customerApplicationDetail(req, res, id) {
 }
 async function customerWorkItems(req, res) {
   await sessionFor(req, 'customer-service')
-  await db.execute(`UPDATE applications SET status = 'PENDING_DISPATCH', updated_at = NOW(3)
-    WHERE status IN ('PENDING_CONTACT','CONTACT_FAILED','PENDING_SERVICE_MODE','PENDING_APPOINTMENT')
-      AND service_mode IN ('HOME_SERVICE','STORE_SERVICE')`)
   const [rows] = await db.query(
     `SELECT a.*, f.voucher_remark, f.verification_reason,
             COALESCE(am.name, m.name) AS merchant_name,
@@ -256,15 +288,52 @@ async function customerWorkItems(req, res) {
        LEFT JOIN merchants m ON m.id = a.merchant_id
        LEFT JOIN merchants am ON am.id = a.assigned_merchant_id
        LEFT JOIN users s ON s.id = a.assigned_salesman_user_id
-      WHERE a.status IN ('PENDING_CONTACT', 'CONTACT_FAILED', 'PENDING_SERVICE_MODE', 'PENDING_APPOINTMENT',
+      WHERE a.status IN ('CONFIRMED', 'DISPATCHING', 'ASSIGNED', 'PROCESSING',
+                         'PENDING_CONTACT', 'CONTACT_FAILED', 'PENDING_SERVICE_MODE', 'PENDING_APPOINTMENT',
                          'PENDING_DISPATCH', 'PENDING_SERVICE', 'IN_SERVICE', 'PENDING_STORE_SERVICE',
                          'IN_STORE_SERVICE', 'VERIFICATION_RETURNED',
-                         'SERVICE_COMPLETED', 'SERVICE_FAILED', 'CLIENT_DECLINED', 'CLOSED')
+                         'COMPLETED', 'CANCELLED', 'SERVICE_COMPLETED', 'SERVICE_FAILED', 'CLIENT_DECLINED', 'CLOSED')
       ORDER BY a.updated_at ASC`
   )
   json(res, 200, { applications: rows.map(row => Object.assign(staffApplicationView(row), {
     merchantName: row.merchant_name || '', salesmanName: row.salesman_name || ''
   })) })
+}
+async function customerWorkItemDetail(req, res, id) {
+  await sessionFor(req, 'customer-service')
+  const [[row]] = await db.query(
+    `SELECT a.*, m.name AS source_merchant_name, m.contact_name AS merchant_contact_name,
+            m.contact_phone AS merchant_contact_phone, am.name AS assigned_store_name,
+            COALESCE(u.display_name, u.phone) AS handler_name, ur.salesman_code, ur.salesman_type,
+            f.identity_verified, f.voucher_remark, f.verification_status, f.verification_reason,
+            f.submitted_at AS fulfillment_submitted_at, f.verified_at AS fulfillment_verified_at
+       FROM applications a
+       LEFT JOIN merchants m ON m.id = a.merchant_id
+       LEFT JOIN merchants am ON am.id = a.assigned_merchant_id
+       LEFT JOIN users u ON u.id = a.assigned_salesman_user_id
+       LEFT JOIN user_roles ur ON ur.user_id = u.id AND ur.role_code = 'salesman'
+       LEFT JOIN fulfillment_submissions f ON f.id = (SELECT id FROM fulfillment_submissions WHERE application_id = a.id ORDER BY submitted_at DESC LIMIT 1)
+      WHERE a.id = ?`, [id])
+  if (!row) throw Object.assign(new Error('业务数据不存在'), { status: 404 })
+  const [history] = await db.query(
+    `SELECT h.id, h.from_status, h.to_status, h.action_code, h.reason, h.operator_role, h.metadata, h.created_at,
+            COALESCE(u.display_name, u.phone, u.login_name, '系统') AS operator_name
+       FROM application_status_history h LEFT JOIN users u ON u.id = h.operator_user_id
+      WHERE h.application_id = ? ORDER BY h.created_at ASC, h.id ASC`, [id])
+  json(res, 200, { application: {
+    id: row.id, phone: row.phone_snapshot, status: row.status, statusText: statusText[row.status] || row.status,
+    statusDescription: statusDescription[row.status] || '', serviceMode: row.service_mode,
+    verifyResult: row.verify_result, customerIntention: row.customer_intention,
+    verificationRemark: row.verification_remark || '', correctedInfo: row.corrected_info,
+    contactResult: row.contact_result, contactReason: row.contact_reason || '',
+    appointmentTime: row.appointment_time, sourceMerchantName: row.source_merchant_name || '',
+    merchantContactName: row.merchant_contact_name || '', merchantContactPhone: row.merchant_contact_phone || '',
+    assignedStoreName: row.assigned_store_name || '', handlerName: row.handler_name || '',
+    salesmanCode: row.salesman_code || '', salesmanType: row.salesman_type || '',
+    expenseTier: row.expense_tier, createdAt: row.created_at, updatedAt: row.updated_at,
+    fulfillment: row.voucher_remark ? { identityVerified: Boolean(row.identity_verified), voucherRemark: row.voucher_remark, verificationStatus: row.verification_status, verificationReason: row.verification_reason || '', submittedAt: row.fulfillment_submitted_at, verifiedAt: row.fulfillment_verified_at } : null,
+    history: history.map(item => ({ id: item.id, fromStatusText: statusText[item.from_status] || item.from_status || '无', toStatusText: statusText[item.to_status] || item.to_status, actionCode: item.action_code, reason: item.reason || '', operatorName: item.operator_name, operatorRole: item.operator_role || 'system', createdAt: item.created_at }))
+  } })
 }
 async function customerSalesmen(req, res) {
   await sessionFor(req, 'customer-service')
@@ -284,8 +353,9 @@ async function customerOutlets(req, res) {
 async function customerVerifications(req, res, category) {
   await sessionFor(req, 'customer-service')
   const completed = category === 'completed'
+  const rejected = category === 'rejected'
   const [rows] = await db.query(
-    `SELECT a.id, a.phone_snapshot, a.status, a.service_mode, a.updated_at, f.submitted_at, f.verified_at,
+    `SELECT a.id, a.phone_snapshot, a.status, a.service_mode, a.updated_at, f.submitted_at, f.verified_at, f.verification_reason,
             COALESCE(u.display_name, u.phone) AS salesman_name,
             COALESCE(am.name, m.name) AS outlet_name
        FROM applications a
@@ -293,15 +363,15 @@ async function customerVerifications(req, res, category) {
        LEFT JOIN users u ON u.id = COALESCE(f.submitted_by_user_id, f.salesman_user_id)
        LEFT JOIN merchants m ON m.id = a.merchant_id
        LEFT JOIN merchants am ON am.id = a.assigned_merchant_id
-      WHERE a.status = ? ${completed ? "AND f.verification_status = 'APPROVED'" : ''}
-      ORDER BY ${completed ? 'f.verified_at DESC' : 'f.submitted_at ASC'}`,
-    [completed ? 'SERVICE_COMPLETED' : 'PENDING_VERIFICATION']
+      WHERE a.status = ? ${completed ? "AND f.verification_status = 'APPROVED'" : rejected ? "AND f.verification_status = 'RETURNED'" : "AND f.verification_status = 'PENDING'"}
+      ORDER BY ${completed || rejected ? 'f.verified_at DESC' : 'f.submitted_at ASC'}`,
+    [completed ? 'COMPLETED' : rejected ? 'VERIFICATION_RETURNED' : 'PENDING_VERIFICATION']
   )
   json(res, 200, { verifications: rows.map(row => ({
     id: row.id, maskedPhone: `${row.phone_snapshot.slice(0, 3)}****${row.phone_snapshot.slice(-4)}`,
     status: row.status, statusText: statusText[row.status] || '待处理',
     serviceMode: row.service_mode, salesmanName: row.salesman_name || '', outletName: row.outlet_name || '',
-    submittedAt: row.submitted_at, verifiedAt: row.verified_at, updatedAt: row.updated_at
+    submittedAt: row.submitted_at, verifiedAt: row.verified_at, verificationReason: row.verification_reason || '', updatedAt: row.updated_at
   })) })
 }
 async function customerVerificationDetail(req, res, id) {
@@ -331,73 +401,111 @@ async function customerVerificationDetail(req, res, id) {
 async function customerAction(req, res, id, action) {
   const user = await sessionFor(req, 'customer-service')
   const body = await readBody(req)
-  if (action === 'review') {
-    const approve = body.decision === 'APPROVE'
-    if (!approve && !String(body.reason || '').trim()) throw Object.assign(new Error('驳回时请填写原因'), { status: 400 })
-    const serviceMode = String(body.serviceMode || '')
-    if (approve && !['HOME_SERVICE', 'STORE_SERVICE'].includes(serviceMode)) throw Object.assign(new Error('请确认上门办理或指定网点办理'), { status: 400 })
-    await changeStatus(id, 'PENDING_REVIEW', approve ? 'PENDING_DISPATCH' : 'REVIEW_REJECTED', approve ? 'REVIEW_APPROVED' : 'REVIEW_REJECTED', user, body.reason)
-    if (approve) await db.execute('UPDATE applications SET service_mode = ? WHERE id = ?', [serviceMode, id])
-    await db.execute('INSERT INTO application_reviews (application_id, reviewer_user_id, decision, reason) VALUES (?, ?, ?, ?)', [id, user.id, approve ? 'APPROVE' : 'REJECT', body.reason || null])
-  } else if (action === 'contact-result') {
+  const connection = await db.getConnection()
+  try {
+    await connection.beginTransaction()
+    const [[current]] = await connection.execute('SELECT status, service_mode FROM applications WHERE id = ? FOR UPDATE', [id])
+    if (!current) throw Object.assign(new Error('申请不存在'), { status: 404 })
+    if (action === 'start-contact') {
+      await changeStatus(id, 'PENDING', 'CONTACTING', 'CONTACT_STARTED', user, null, {}, connection)
+    } else if (action === 'contact-result') {
     const result = String(body.result || '')
-    const [[application]] = await db.execute('SELECT service_mode FROM applications WHERE id = ?', [id])
-    const contactedTarget = application && application.service_mode === 'HOME_SERVICE' ? 'PENDING_APPOINTMENT'
-      : application && application.service_mode === 'STORE_SERVICE' ? 'PENDING_STORE_SERVICE' : 'PENDING_SERVICE_MODE'
-    const target = { CONTACTED: contactedTarget, UNREACHABLE: 'CONTACT_FAILED', CLIENT_DECLINED: 'CLIENT_DECLINED' }[result]
+    const target = { CONTACTED: 'VERIFYING', UNREACHABLE: 'CONTACTING', CLIENT_DECLINED: 'CANCELLED' }[result]
     if (!target) throw Object.assign(new Error('请选择有效的联系结果'), { status: 400 })
     if (result !== 'CONTACTED' && !String(body.reason || '').trim()) throw Object.assign(new Error('请填写联系结果说明'), { status: 400 })
-    await changeStatus(id, 'PENDING_CONTACT', target, `CONTACT_${result}`, user, body.reason)
-    await db.execute('UPDATE applications SET contact_result = ?, contact_reason = ? WHERE id = ?', [result, body.reason || null, id])
-    await db.execute('INSERT INTO application_contact_records (application_id, operator_user_id, result, remark) VALUES (?, ?, ?, ?)', [id, user.id, result, body.reason || null])
-  } else if (action === 'retry-contact') {
-    await changeStatus(id, 'CONTACT_FAILED', 'PENDING_CONTACT', 'CONTACT_RETRY', user)
-  } else if (action === 'service-mode') {
+    if (target === 'CONTACTING') await recordStatusEvent(id, 'CONTACTING', `CONTACT_${result}`, user, body.reason, {}, connection)
+    else await changeStatus(id, 'CONTACTING', target, `CONTACT_${result}`, user, body.reason, {}, connection)
+    await connection.execute('UPDATE applications SET contact_result = ?, contact_reason = ? WHERE id = ?', [result, body.reason || null, id])
+    await connection.execute('INSERT INTO application_contact_records (application_id, operator_user_id, result, remark) VALUES (?, ?, ?, ?)', [id, user.id, result, body.reason || null])
+    } else if (action === 'verify-info') {
+      const result = String(body.verifyResult || '')
+      if (!['VERIFIED', 'INVALID_INFO'].includes(result)) throw Object.assign(new Error('请选择信息属实或信息不属实'), { status: 400 })
+      if (result === 'INVALID_INFO' && !String(body.remark || '').trim()) throw Object.assign(new Error('请填写信息异常说明'), { status: 400 })
+      await changeStatus(id, 'VERIFYING', result, result === 'VERIFIED' ? 'INFORMATION_VERIFIED' : 'INFORMATION_INVALID', user, body.remark, {}, connection)
+      await connection.execute('UPDATE applications SET verify_result = ?, verification_remark = ?, verified_by_user_id = ?, verified_at = NOW(3) WHERE id = ?', [result, body.remark || null, user.id, id])
+      await connection.execute('INSERT INTO application_reviews (application_id, reviewer_user_id, decision, reason) VALUES (?, ?, ?, ?)', [id, user.id, result === 'VERIFIED' ? 'APPROVE' : 'REJECT', body.remark || null])
+    } else if (action === 'intention') {
+      const intention = String(body.customerIntention || '')
+      if (!['WILLING', 'UNWILLING'].includes(intention)) throw Object.assign(new Error('请选择客户办理意愿'), { status: 400 })
+      const from = current.status
+      if (!['VERIFIED', 'INVALID_INFO'].includes(from)) throw Object.assign(new Error('当前申请不能确认办理意愿'), { status: 409 })
+      const target = intention === 'UNWILLING' ? 'CANCELLED' : from === 'INVALID_INFO' ? 'CORRECTING' : 'VERIFIED'
+      if (from === target) await recordStatusEvent(id, from, 'CUSTOMER_WILLING', user, body.remark, { customerIntention: intention }, connection)
+      else await changeStatus(id, from, target, intention === 'UNWILLING' ? 'CUSTOMER_CANCELLED' : 'CUSTOMER_WILLING', user, body.remark, { customerIntention: intention }, connection)
+      await connection.execute('UPDATE applications SET customer_intention = ?, intention_confirmed_at = NOW(3), closed_reason = ? WHERE id = ?', [intention, intention === 'UNWILLING' ? body.remark || '客户无办理意愿' : null, id])
+    } else if (action === 'correct-info') {
+      const correctedInfo = body.correctedInfo
+      if (!correctedInfo || typeof correctedInfo !== 'object') throw Object.assign(new Error('请填写需要更正的客户信息'), { status: 400 })
+      if (typeof correctedInfo.localNumber !== 'boolean') throw Object.assign(new Error('请选择手机号是否为本地号码'), { status: 400 })
+      if (!correctedInfo.localNumber && correctedInfo.acceptLocalCard !== true) throw Object.assign(new Error('非本地号码需确认客户接受办理本地卡'), { status: 400 })
+      if (!expenseTiers.has(String(correctedInfo.expenseTier || ''))) throw Object.assign(new Error('请选择有效的套餐档位'), { status: 400 })
+      if (!Array.isArray(correctedInfo.commitments) || correctedInfo.commitments.length !== 3 || !correctedInfo.commitments.every(Boolean)) throw Object.assign(new Error('请确认全部三年履约要求'), { status: 400 })
+      const normalizedCorrection = {
+        localNumber: correctedInfo.localNumber,
+        acceptLocalCard: correctedInfo.localNumber ? null : true,
+        expenseTier: correctedInfo.expenseTier,
+        commitments: [true, true, true],
+        remark: String(body.remark || '').trim()
+      }
+      await changeStatus(id, 'CORRECTING', 'VERIFIED', 'INFORMATION_CORRECTED', user, normalizedCorrection.remark, { correctedInfo: normalizedCorrection }, connection)
+      await connection.execute(
+        "UPDATE applications SET corrected_info = ?, verify_result = 'VERIFIED', local_option = ?, is_local_number = ?, accept_local_card = ?, is_local_resident = ?, expense_tier = ?, commitments = ? WHERE id = ?",
+        [JSON.stringify(normalizedCorrection), normalizedCorrection.localNumber ? 'LOCAL_NUMBER' : 'ACCEPT_LOCAL_CARD', normalizedCorrection.localNumber ? 1 : 0, normalizedCorrection.acceptLocalCard === null ? null : 1, normalizedCorrection.localNumber ? 1 : 0, normalizedCorrection.expenseTier, JSON.stringify(normalizedCorrection.commitments), id]
+      )
+    } else if (action === 'service-type' || action === 'service-mode') {
     const mode = String(body.serviceMode || '')
-    const target = { HOME_SERVICE: 'PENDING_APPOINTMENT', STORE_SERVICE: 'PENDING_STORE_SERVICE' }[mode]
-    if (!target) throw Object.assign(new Error('请选择上门办理或营业厅办理'), { status: 400 })
-    await changeStatus(id, 'PENDING_SERVICE_MODE', target, 'SERVICE_MODE_CONFIRMED', user, null, { serviceMode: mode })
-    await db.execute('UPDATE applications SET service_mode = ? WHERE id = ?', [mode, id])
+    if (!['HOME_SERVICE', 'STORE_SERVICE'].includes(mode)) throw Object.assign(new Error('请选择上门办理或营业厅办理'), { status: 400 })
+    if (current.status !== 'VERIFIED' || current.status === 'VERIFIED' && current.service_mode) throw Object.assign(new Error('当前申请不能确认办理方式'), { status: 409 })
+    await changeStatus(id, 'VERIFIED', 'CONFIRMED', 'SERVICE_TYPE_CONFIRMED', user, null, { serviceMode: mode }, connection)
+    await connection.execute('UPDATE applications SET service_mode = ? WHERE id = ?', [mode, id])
   } else if (action === 'confirm-appointment') {
     if (!String(body.appointmentTime || '').trim()) throw Object.assign(new Error('请填写已确认的上门时间'), { status: 400 })
-    await changeStatus(id, 'PENDING_APPOINTMENT', 'PENDING_DISPATCH', 'APPOINTMENT_CONFIRMED', user, null, { appointmentTime: body.appointmentTime })
-    await db.execute('UPDATE applications SET appointment_time = ? WHERE id = ?', [body.appointmentTime, id])
-    await db.execute('INSERT INTO application_appointments (application_id, appointment_time, confirmed_by_user_id) VALUES (?, ?, ?)', [id, body.appointmentTime, user.id])
+    await changeStatus(id, 'PENDING_APPOINTMENT', 'PENDING_DISPATCH', 'APPOINTMENT_CONFIRMED', user, null, { appointmentTime: body.appointmentTime }, connection)
+    await connection.execute('UPDATE applications SET appointment_time = ? WHERE id = ?', [body.appointmentTime, id])
+    await connection.execute('INSERT INTO application_appointments (application_id, appointment_time, confirmed_by_user_id) VALUES (?, ?, ?)', [id, body.appointmentTime, user.id])
   } else if (action === 'dispatch') {
-    const [[salesman]] = await db.query("SELECT u.id, u.display_name FROM users u JOIN user_roles r ON r.user_id = u.id WHERE r.role_code = 'salesman' AND r.salesman_type = 'HOME_VISIT' AND r.salesman_code = ?", [body.salesmanId])
+    if (current.status !== 'CONFIRMED' || current.service_mode !== 'HOME_SERVICE') throw Object.assign(new Error('当前上门任务不能派单'), { status: 409 })
+    const [[salesman]] = await connection.query("SELECT u.id, u.display_name FROM users u JOIN user_roles r ON r.user_id = u.id WHERE r.role_code = 'salesman' AND r.salesman_type = 'HOME_VISIT' AND r.salesman_code = ?", [body.salesmanId])
     if (!salesman) throw Object.assign(new Error('请选择有效的业务员'), { status: 400 })
-    await changeStatus(id, 'PENDING_DISPATCH', 'PENDING_SERVICE', 'DISPATCHED', user, null, { salesmanId: body.salesmanId })
-    await db.execute('UPDATE applications SET assigned_salesman_user_id = ? WHERE id = ?', [salesman.id, id])
-    await db.execute('INSERT INTO application_dispatches (application_id, salesman_user_id, dispatcher_user_id) VALUES (?, ?, ?)', [id, salesman.id, user.id])
+    await changeStatus(id, 'CONFIRMED', 'DISPATCHING', 'DISPATCH_STARTED', user, null, {}, connection)
+    await changeStatus(id, 'DISPATCHING', 'ASSIGNED', 'DISPATCHED', user, null, { salesmanId: body.salesmanId }, connection)
+    await connection.execute('UPDATE applications SET assigned_salesman_user_id = ?, assigned_merchant_id = NULL WHERE id = ?', [salesman.id, id])
+    await connection.execute('INSERT INTO application_dispatches (application_id, salesman_user_id, dispatcher_user_id) VALUES (?, ?, ?)', [id, salesman.id, user.id])
   } else if (action === 'assign-store') {
     const outletId = Number(body.outletId)
-    const [[outlet]] = await db.execute("SELECT id FROM merchants WHERE id = ? AND status = 'ACTIVE'", [outletId])
+    const [[outlet]] = await connection.execute("SELECT id FROM merchants WHERE id = ? AND status = 'ACTIVE'", [outletId])
     if (!outlet) throw Object.assign(new Error('请选择有效的指定网点'), { status: 400 })
-    const [[current]] = await db.execute('SELECT status, service_mode FROM applications WHERE id = ?', [id])
-    if (!current || current.status !== 'PENDING_DISPATCH' || current.service_mode !== 'STORE_SERVICE') throw Object.assign(new Error('当前任务不能派遣到网点'), { status: 409 })
-    await changeStatus(id, 'PENDING_DISPATCH', 'PENDING_STORE_SERVICE', 'STORE_ASSIGNED', user, null, { outletId })
-    await db.execute('UPDATE applications SET assigned_merchant_id = ? WHERE id = ?', [outletId, id])
+    if (current.status !== 'CONFIRMED' || current.service_mode !== 'STORE_SERVICE') throw Object.assign(new Error('当前任务不能派遣到网点'), { status: 409 })
+    await changeStatus(id, 'CONFIRMED', 'DISPATCHING', 'DISPATCH_STARTED', user, null, {}, connection)
+    await changeStatus(id, 'DISPATCHING', 'ASSIGNED', 'STORE_ASSIGNED', user, null, { outletId }, connection)
+    await connection.execute('UPDATE applications SET assigned_merchant_id = ?, assigned_salesman_user_id = NULL WHERE id = ?', [outletId, id])
+    await connection.execute('INSERT INTO application_dispatches (application_id, salesman_user_id, submitted_by_user_id, dispatcher_user_id, note) VALUES (?, NULL, ?, ?, ?)', [id, user.id, user.id, `网点:${outletId}`])
   } else if (action === 'start-store') {
-    await changeStatus(id, 'PENDING_STORE_SERVICE', 'IN_STORE_SERVICE', 'STORE_SERVICE_STARTED', user)
+    await changeStatus(id, 'ASSIGNED', 'PROCESSING', 'STORE_SERVICE_STARTED', user, null, {}, connection)
   } else if (action === 'submit-store') {
     if (!String(body.voucherRemark || '').trim()) throw Object.assign(new Error('请填写营业厅办理结果与凭证说明'), { status: 400 })
-    const [[current]] = await db.execute('SELECT status, service_mode FROM applications WHERE id = ?', [id])
-    if (!current || current.service_mode !== 'STORE_SERVICE' || !['IN_STORE_SERVICE', 'VERIFICATION_RETURNED'].includes(current.status)) throw Object.assign(new Error('当前申请不能提交营业厅办理凭证'), { status: 409 })
-    await changeStatus(id, current.status, 'PENDING_VERIFICATION', 'STORE_FULFILLMENT_SUBMITTED', user)
-    await db.execute('INSERT INTO fulfillment_submissions (application_id, submitted_by_user_id, identity_verified, voucher_remark) VALUES (?, ?, 1, ?)', [id, user.id, body.voucherRemark.trim()])
+    if (current.service_mode !== 'STORE_SERVICE' || !['PROCESSING', 'VERIFICATION_RETURNED'].includes(current.status)) throw Object.assign(new Error('当前申请不能提交营业厅办理凭证'), { status: 409 })
+    await changeStatus(id, current.status, 'PENDING_VERIFICATION', 'STORE_FULFILLMENT_SUBMITTED', user, null, {}, connection)
+    await connection.execute('INSERT INTO fulfillment_submissions (application_id, submitted_by_user_id, identity_verified, voucher_remark) VALUES (?, ?, 1, ?)', [id, user.id, body.voucherRemark.trim()])
   } else if (action === 'service-fail') {
     if (!String(body.reason || '').trim()) throw Object.assign(new Error('请填写办理失败原因'), { status: 400 })
-    const [[current]] = await db.execute('SELECT status FROM applications WHERE id = ?', [id])
-    if (!current || current.status !== 'IN_STORE_SERVICE') throw Object.assign(new Error('当前申请不能标记为办理失败'), { status: 409 })
-    await changeStatus(id, current.status, 'SERVICE_FAILED', 'STORE_SERVICE_FAILED', user, body.reason)
-    await db.execute('UPDATE applications SET service_failure_reason = ? WHERE id = ?', [body.reason.trim(), id])
+    if (current.status !== 'PROCESSING') throw Object.assign(new Error('当前申请不能标记为办理失败'), { status: 409 })
+    await changeStatus(id, current.status, 'SERVICE_FAILED', 'STORE_SERVICE_FAILED', user, body.reason, {}, connection)
+    await connection.execute('UPDATE applications SET service_failure_reason = ? WHERE id = ?', [body.reason.trim(), id])
   } else if (action === 'verify') {
     const approve = body.decision === 'APPROVE'
     if (!approve && !String(body.reason || '').trim()) throw Object.assign(new Error('退回时请填写原因'), { status: 400 })
     if (approve && body.customerConfirmed !== true) throw Object.assign(new Error('请先与客户确认业务已办理完成'), { status: 400 })
-    await changeStatus(id, 'PENDING_VERIFICATION', approve ? 'SERVICE_COMPLETED' : 'VERIFICATION_RETURNED', approve ? 'FULFILLMENT_VERIFIED' : 'FULFILLMENT_RETURNED', user, body.reason, { customerConfirmed: approve })
-    await db.execute('UPDATE fulfillment_submissions SET verification_status = ?, verification_reason = ?, verifier_user_id = ?, verified_at = NOW(3) WHERE application_id = ? ORDER BY submitted_at DESC LIMIT 1', [approve ? 'APPROVED' : 'RETURNED', body.reason || null, user.id, id])
+    await changeStatus(id, 'PENDING_VERIFICATION', approve ? 'COMPLETED' : 'VERIFICATION_RETURNED', approve ? 'FULFILLMENT_VERIFIED' : 'FULFILLMENT_RETURNED', user, body.reason, { customerConfirmed: approve }, connection)
+    await connection.execute('UPDATE fulfillment_submissions SET verification_status = ?, verification_reason = ?, verifier_user_id = ?, verified_at = NOW(3) WHERE application_id = ? ORDER BY submitted_at DESC LIMIT 1', [approve ? 'APPROVED' : 'RETURNED', body.reason || null, user.id, id])
   } else throw Object.assign(new Error('未知客服操作'), { status: 404 })
+    await connection.commit()
+  } catch (cause) {
+    await connection.rollback()
+    throw cause
+  } finally {
+    connection.release()
+  }
   json(res, 200, { ok: true })
 }
 async function salesmanApplications(req, res) {
@@ -407,8 +515,8 @@ async function salesmanApplications(req, res) {
     `SELECT a.*, f.voucher_remark, f.verification_reason
        FROM applications a LEFT JOIN fulfillment_submissions f ON f.id = (SELECT id FROM fulfillment_submissions WHERE application_id = a.id ORDER BY submitted_at DESC LIMIT 1)
       WHERE ${branch
-        ? "a.service_mode = 'STORE_SERVICE' AND a.status IN ('PENDING_STORE_SERVICE','IN_STORE_SERVICE','VERIFICATION_RETURNED','PENDING_VERIFICATION') AND (a.assigned_salesman_user_id IS NULL OR a.assigned_salesman_user_id = ?)"
-        : "a.assigned_salesman_user_id = ? AND a.service_mode = 'HOME_SERVICE' AND a.status IN ('PENDING_SERVICE','IN_SERVICE','VERIFICATION_RETURNED','PENDING_VERIFICATION')"}
+        ? "a.service_mode = 'STORE_SERVICE' AND a.status IN ('ASSIGNED','PROCESSING','VERIFICATION_RETURNED','PENDING_VERIFICATION') AND (a.assigned_salesman_user_id IS NULL OR a.assigned_salesman_user_id = ?)"
+        : "a.assigned_salesman_user_id = ? AND a.service_mode = 'HOME_SERVICE' AND a.status IN ('ASSIGNED','PROCESSING','VERIFICATION_RETURNED','PENDING_VERIFICATION')"}
       ORDER BY a.appointment_time ASC, a.updated_at ASC`, [user.id]
   )
   json(res, 200, { salesmanType: branch ? 'BRANCH' : 'HOME_VISIT', applications: rows.map(staffApplicationView) })
@@ -418,28 +526,28 @@ async function salesmanAction(req, res, id, action) {
   const body = await readBody(req)
   const branch = user.salesman_type === 'BRANCH'
   const [[application]] = await db.query('SELECT assigned_salesman_user_id, service_mode, status FROM applications WHERE id = ?', [id])
-  const canClaimBranch = branch && application && application.service_mode === 'STORE_SERVICE' && application.status === 'PENDING_STORE_SERVICE' && application.assigned_salesman_user_id === null
+  const canClaimBranch = branch && application && application.service_mode === 'STORE_SERVICE' && application.status === 'ASSIGNED' && application.assigned_salesman_user_id === null
   if (!application || (!canClaimBranch && application.assigned_salesman_user_id !== user.id)) throw Object.assign(new Error('无权操作该申请'), { status: 403 })
   if (action === 'start') {
     if (branch) {
-      const [claimed] = await db.query("UPDATE applications SET assigned_salesman_user_id = ? WHERE id = ? AND service_mode = 'STORE_SERVICE' AND status = 'PENDING_STORE_SERVICE' AND assigned_salesman_user_id IS NULL", [user.id, id])
+      const [claimed] = await db.query("UPDATE applications SET assigned_salesman_user_id = ? WHERE id = ? AND service_mode = 'STORE_SERVICE' AND status = 'ASSIGNED' AND assigned_salesman_user_id IS NULL", [user.id, id])
       if (!claimed.affectedRows && application.assigned_salesman_user_id !== user.id) throw Object.assign(new Error('该网点任务已被其他业务员接手'), { status: 409 })
-      await changeStatus(id, 'PENDING_STORE_SERVICE', 'IN_STORE_SERVICE', 'BRANCH_SERVICE_STARTED', user)
+      await changeStatus(id, 'ASSIGNED', 'PROCESSING', 'BRANCH_SERVICE_STARTED', user)
     } else {
       if (application.service_mode !== 'HOME_SERVICE') throw Object.assign(new Error('上门型业务员不能处理网点任务'), { status: 403 })
-      await changeStatus(id, 'PENDING_SERVICE', 'IN_SERVICE', 'SERVICE_STARTED', user)
+      await changeStatus(id, 'ASSIGNED', 'PROCESSING', 'SERVICE_STARTED', user)
     }
   } else if (action === 'submit') {
     if (!body.identityVerified) throw Object.assign(new Error('请先确认已完成实名核实'), { status: 400 })
     if (!String(body.voucherRemark || '').trim()) throw Object.assign(new Error('请填写办理凭证说明'), { status: 400 })
     const [[current]] = await db.query('SELECT status FROM applications WHERE id = ?', [id])
-    const allowed = branch ? ['IN_STORE_SERVICE', 'VERIFICATION_RETURNED'] : ['IN_SERVICE', 'VERIFICATION_RETURNED']
+    const allowed = ['PROCESSING', 'VERIFICATION_RETURNED']
     if (!allowed.includes(current.status)) throw Object.assign(new Error('当前申请不能提交凭证'), { status: 409 })
     await changeStatus(id, current.status, 'PENDING_VERIFICATION', 'FULFILLMENT_SUBMITTED', user)
     await db.query('INSERT INTO fulfillment_submissions (application_id, salesman_user_id, submitted_by_user_id, identity_verified, voucher_remark) VALUES (?, ?, ?, 1, ?)', [id, user.id, user.id, body.voucherRemark.trim()])
   } else if (action === 'fail') {
     if (!String(body.reason || '').trim()) throw Object.assign(new Error('请填写办理失败原因'), { status: 400 })
-    await changeStatus(id, branch ? 'IN_STORE_SERVICE' : 'IN_SERVICE', 'SERVICE_FAILED', branch ? 'BRANCH_SERVICE_FAILED' : 'HOME_SERVICE_FAILED', user, body.reason)
+    await changeStatus(id, 'PROCESSING', 'SERVICE_FAILED', branch ? 'BRANCH_SERVICE_FAILED' : 'HOME_SERVICE_FAILED', user, body.reason)
     await db.execute('UPDATE applications SET service_failure_reason = ? WHERE id = ?', [body.reason.trim(), id])
   } else throw Object.assign(new Error('未知业务员操作'), { status: 404 })
   json(res, 200, { ok: true })
@@ -474,7 +582,7 @@ async function submitScreening(req, res) {
   if (!expenseTiers.has(body.expenseTier)) reasons.push('请选择个人（全家）套餐档位')
   if (commitments.length !== 3 || !commitments.every(Boolean)) reasons.push('请确认三年内不销户、不转网、不降套餐')
   const passed = reasons.length === 0
-  const status = passed ? 'PENDING_REVIEW' : 'PRE_SCREEN_REJECTED'
+  const status = passed ? 'PENDING' : 'PRE_SCREEN_REJECTED'
   const id = crypto.randomUUID()
   await db.execute(
     `INSERT INTO applications (id, client_user_id, merchant_id, merchant_invite_id, source_type, phone_snapshot, attribution_status, attribution_province, attribution_city, local_option, is_local_number, accept_local_card, expense_tier, commitments, pre_screen_passed, pre_screen_status, rule_version, status, screening_submitted_at)
@@ -534,6 +642,7 @@ async function withdrawMyApplication(req, res, id) {
   if (!row) throw Object.assign(new Error('申请不存在'), { status: 404 })
   if (!withdrawableStatuses.has(row.status)) throw Object.assign(new Error('申请当前阶段不可撤回'), { status: 409 })
   await changeStatus(id, row.status, 'WITHDRAWN', 'APPLICATION_WITHDRAWN', user, '用户主动撤回申请')
+  await db.execute('DELETE FROM client_entry_sources WHERE user_id = ?', [user.id])
   json(res, 200, { ok: true })
 }
 async function merchantDashboard(req, res) {
@@ -542,8 +651,8 @@ async function merchantDashboard(req, res) {
   const [[[merchant]], [[applicationStats]], [[billStats]], [recentRows]] = await Promise.all([
     db.execute('SELECT id, name, contact_name, contact_phone FROM merchants WHERE id = ?', [user.merchant_id]),
     db.execute(`SELECT COUNT(*) total,
-      SUM(status IN ('PENDING_REVIEW','PENDING_CONTACT','CONTACT_FAILED','PENDING_SERVICE_MODE','PENDING_APPOINTMENT','PENDING_DISPATCH','PENDING_SERVICE','IN_SERVICE','PENDING_STORE_SERVICE','IN_STORE_SERVICE','PENDING_VERIFICATION','VERIFICATION_RETURNED')) processing,
-      SUM(status = 'SERVICE_COMPLETED') completed
+      SUM(status IN ('PENDING','CONTACTING','VERIFYING','VERIFIED','INVALID_INFO','CORRECTING','CONFIRMED','DISPATCHING','ASSIGNED','PROCESSING','PENDING_VERIFICATION','VERIFICATION_RETURNED')) processing,
+      SUM(status = 'COMPLETED') completed
       FROM applications WHERE merchant_id = ? OR assigned_merchant_id = ?`, [user.merchant_id, user.merchant_id]),
     db.execute(`SELECT COALESCE(SUM(commission_amount),0) expected_commission,
       COALESCE(SUM(CASE WHEN status = 'REFUND_POSTED' THEN commission_amount ELSE 0 END),0) settled_commission
@@ -581,7 +690,7 @@ async function merchantInviteQr(req, res) {
 async function financeDashboard(req, res) {
   await sessionFor(req, 'finance')
   const [[[applicationStats]], [[billStats]], [recentBills]] = await Promise.all([
-    db.query(`SELECT COUNT(*) total_applications, SUM(status = 'SERVICE_COMPLETED') completed_applications FROM applications`),
+    db.query(`SELECT COUNT(*) total_applications, SUM(status = 'COMPLETED') completed_applications FROM applications`),
     db.query(`SELECT COUNT(*) total_bills,
       SUM(status = 'PENDING_CONFIRMATION') pending_confirmation,
       COALESCE(SUM(cashback_amount),0) cashback_total,
@@ -602,8 +711,8 @@ async function bossDashboard(req, res) {
   await sessionFor(req, 'boss')
   const [[[applicationStats]], [[businessStats]], [roleRows], [recentRows]] = await Promise.all([
     db.query(`SELECT COUNT(*) total_applications,
-      SUM(status IN ('PENDING_REVIEW','PENDING_CONTACT','CONTACT_FAILED','PENDING_SERVICE_MODE','PENDING_APPOINTMENT','PENDING_DISPATCH','PENDING_SERVICE','IN_SERVICE','PENDING_STORE_SERVICE','IN_STORE_SERVICE','PENDING_VERIFICATION','VERIFICATION_RETURNED')) processing,
-      SUM(status = 'SERVICE_COMPLETED') completed,
+      SUM(status IN ('PENDING','CONTACTING','VERIFYING','VERIFIED','INVALID_INFO','CORRECTING','CONFIRMED','DISPATCHING','ASSIGNED','PROCESSING','PENDING_VERIFICATION','VERIFICATION_RETURNED')) processing,
+      SUM(status = 'COMPLETED') completed,
       SUM(status = 'WITHDRAWN') withdrawn FROM applications`),
     db.query(`SELECT (SELECT COUNT(*) FROM merchants WHERE status = 'ACTIVE') active_merchants,
       COALESCE(SUM(cashback_amount),0) cashback_total,
@@ -733,6 +842,55 @@ async function disableManagedAccount(req, res, role, id) {
   } catch (cause) { await connection.rollback(); throw cause } finally { connection.release() }
 }
 
+async function adminOrders(req, res, status) {
+  await sessionFor(req, 'admin')
+  const params = []
+  const where = status ? 'WHERE a.status = ?' : ''
+  if (status) params.push(status)
+  const [rows] = await db.execute(
+    `SELECT a.id, a.phone_snapshot, a.status, a.service_mode, a.verify_result, a.customer_intention,
+            a.updated_at, m.name AS source_merchant_name, am.name AS assigned_store_name,
+            COALESCE(u.display_name, u.phone) AS handler_name
+       FROM applications a
+       LEFT JOIN merchants m ON m.id = a.merchant_id
+       LEFT JOIN merchants am ON am.id = a.assigned_merchant_id
+       LEFT JOIN users u ON u.id = a.assigned_salesman_user_id
+       ${where} ORDER BY a.updated_at DESC`, params)
+  json(res, 200, { orders: rows.map(row => ({
+    id: row.id, maskedPhone: `${row.phone_snapshot.slice(0, 3)}****${row.phone_snapshot.slice(-4)}`,
+    status: row.status, statusText: statusText[row.status] || row.status, serviceMode: row.service_mode,
+    verifyResult: row.verify_result, customerIntention: row.customer_intention,
+    sourceMerchantName: row.source_merchant_name || '', assignedStoreName: row.assigned_store_name || '',
+    handlerName: row.handler_name || '', updatedAt: row.updated_at
+  })) })
+}
+
+async function adminOrderDetail(req, res, id) {
+  await sessionFor(req, 'admin')
+  const [[row]] = await db.execute(
+    `SELECT a.*, m.name AS source_merchant_name, am.name AS assigned_store_name,
+            COALESCE(u.display_name, u.phone) AS handler_name
+       FROM applications a
+       LEFT JOIN merchants m ON m.id = a.merchant_id
+       LEFT JOIN merchants am ON am.id = a.assigned_merchant_id
+       LEFT JOIN users u ON u.id = a.assigned_salesman_user_id
+      WHERE a.id = ?`, [id])
+  if (!row) throw Object.assign(new Error('订单不存在'), { status: 404 })
+  const [history] = await db.execute(
+    `SELECT h.id, h.from_status, h.to_status, h.action_code, h.reason, h.operator_role, h.metadata, h.created_at,
+            COALESCE(u.display_name, u.phone, u.login_name, '系统') AS operator_name
+       FROM application_status_history h LEFT JOIN users u ON u.id = h.operator_user_id
+      WHERE h.application_id = ? ORDER BY h.created_at ASC, h.id ASC`, [id])
+  json(res, 200, { order: {
+    id: row.id, phone: row.phone_snapshot, status: row.status, statusText: statusText[row.status] || row.status,
+    serviceMode: row.service_mode, verifyResult: row.verify_result, customerIntention: row.customer_intention,
+    verificationRemark: row.verification_remark || '', correctedInfo: row.corrected_info,
+    sourceMerchantName: row.source_merchant_name || '', assignedStoreName: row.assigned_store_name || '',
+    handlerName: row.handler_name || '', createdAt: row.created_at, updatedAt: row.updated_at,
+    history: history.map(item => ({ id: item.id, fromStatus: item.from_status, fromStatusText: statusText[item.from_status] || item.from_status || '无', toStatus: item.to_status, toStatusText: statusText[item.to_status] || item.to_status, actionCode: item.action_code, reason: item.reason || '', operatorRole: item.operator_role || 'system', operatorName: item.operator_name, metadata: item.metadata, createdAt: item.created_at }))
+  } })
+}
+
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`)
@@ -766,8 +924,13 @@ const server = http.createServer(async (req, res) => {
     const adminAccountMatch = url.pathname.match(/^\/v1\/admin\/accounts\/(merchant|salesman|customer-service)\/(\d+)$/)
     if (req.method === 'PUT' && adminAccountMatch) return await updateManagedAccount(req, res, adminAccountMatch[1], adminAccountMatch[2])
     if (req.method === 'DELETE' && adminAccountMatch) return await disableManagedAccount(req, res, adminAccountMatch[1], adminAccountMatch[2])
+    if (req.method === 'GET' && url.pathname === '/v1/admin/orders') return await adminOrders(req, res, url.searchParams.get('status'))
+    const adminOrderMatch = url.pathname.match(/^\/v1\/admin\/orders\/([\w-]+)$/)
+    if (req.method === 'GET' && adminOrderMatch) return await adminOrderDetail(req, res, adminOrderMatch[1])
     if (req.method === 'GET' && url.pathname === '/v1/customer/applications') return await customerApplications(req, res)
     if (req.method === 'GET' && url.pathname === '/v1/customer/work-items') return await customerWorkItems(req, res)
+    const customerWorkItemMatch = url.pathname.match(/^\/v1\/customer\/work-items\/([\w-]+)$/)
+    if (req.method === 'GET' && customerWorkItemMatch) return await customerWorkItemDetail(req, res, customerWorkItemMatch[1])
     if (req.method === 'GET' && url.pathname === '/v1/customer/salesmen') return await customerSalesmen(req, res)
     if (req.method === 'GET' && url.pathname === '/v1/customer/outlets') return await customerOutlets(req, res)
     if (req.method === 'GET' && url.pathname === '/v1/customer/verifications') return await customerVerifications(req, res, url.searchParams.get('category'))
@@ -775,7 +938,7 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && customerVerificationMatch) return await customerVerificationDetail(req, res, customerVerificationMatch[1])
     const customerDetailMatch = url.pathname.match(/^\/v1\/customer\/applications\/([\w-]+)$/)
     if (req.method === 'GET' && customerDetailMatch) return await customerApplicationDetail(req, res, customerDetailMatch[1])
-    const customerMatch = url.pathname.match(/^\/v1\/customer\/applications\/([\w-]+)\/(review|contact-result|retry-contact|service-mode|confirm-appointment|dispatch|assign-store|start-store|submit-store|service-fail|verify)$/)
+    const customerMatch = url.pathname.match(/^\/v1\/customer\/applications\/([\w-]+)\/(start-contact|contact-result|verify-info|intention|correct-info|service-type|review|retry-contact|service-mode|confirm-appointment|dispatch|assign-store|start-store|submit-store|service-fail|verify)$/)
     if (req.method === 'POST' && customerMatch) return await customerAction(req, res, customerMatch[1], customerMatch[2])
     if (req.method === 'GET' && url.pathname === '/v1/salesman/applications') return await salesmanApplications(req, res)
     const salesmanMatch = url.pathname.match(/^\/v1\/salesman\/applications\/([\w-]+)\/(start|submit|fail)$/)

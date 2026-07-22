@@ -27,6 +27,7 @@ const NAV_ITEMS = {
   ],
   admin: [
     { key: 'accounts', label: '账号管理', icon: '管', url: '/modules/admin/pages/accounts/index' },
+    { key: 'orders', label: '订单流程', icon: '单', url: '/modules/admin/pages/orders/index' },
     { key: 'profile', label: '管理员中心', icon: '我', url: '/pages/account/index?role=admin' }
   ]
 }

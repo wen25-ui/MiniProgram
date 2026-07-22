@@ -25,6 +25,9 @@ function getCustomerServiceApplication(id) {
 function getCustomerWorkItems() {
   return customerRequest('/v1/customer/work-items').then(response => response.applications || [])
 }
+function getCustomerWorkItem(id) {
+  return customerRequest(`/v1/customer/work-items/${id}`).then(response => response.application)
+}
 function getCustomerSalesmen() {
   return customerRequest('/v1/customer/salesmen').then(response => response.salesmen || [])
 }
@@ -32,14 +35,19 @@ function getCustomerOutlets() {
   return customerRequest('/v1/customer/outlets').then(response => response.outlets || [])
 }
 function getCustomerVerifications(category) {
-  const query = category === 'completed' ? '?category=completed' : ''
+  const query = ['completed', 'rejected'].includes(category) ? `?category=${category}` : ''
   return customerRequest(`/v1/customer/verifications${query}`).then(response => response.verifications || [])
 }
 function getCustomerVerification(id) {
   return customerRequest(`/v1/customer/verifications/${id}`).then(response => response.verification)
 }
 function reviewApplication(id, decision, reason, serviceMode) { return customerRequest(`/v1/customer/applications/${id}/review`, { decision, reason, serviceMode }) }
+function startCustomerContact(id) { return customerRequest(`/v1/customer/applications/${id}/start-contact`, {}) }
 function recordContactResult(id, result, reason) { return customerRequest(`/v1/customer/applications/${id}/contact-result`, { result, reason }) }
+function verifyCustomerInfo(id, verifyResult, remark) { return customerRequest(`/v1/customer/applications/${id}/verify-info`, { verifyResult, remark }) }
+function recordCustomerIntention(id, customerIntention, remark) { return customerRequest(`/v1/customer/applications/${id}/intention`, { customerIntention, remark }) }
+function correctCustomerInfo(id, correctedInfo, remark) { return customerRequest(`/v1/customer/applications/${id}/correct-info`, { correctedInfo, remark }) }
+function selectServiceType(id, serviceMode) { return customerRequest(`/v1/customer/applications/${id}/service-type`, { serviceMode }) }
 function retryContact(id) { return customerRequest(`/v1/customer/applications/${id}/retry-contact`, {}) }
 function selectServiceMode(id, serviceMode) { return customerRequest(`/v1/customer/applications/${id}/service-mode`, { serviceMode }) }
 function confirmAppointment(id, appointmentTime) { return customerRequest(`/v1/customer/applications/${id}/confirm-appointment`, { appointmentTime }) }
@@ -58,12 +66,18 @@ module.exports = {
   getCustomerServiceApplications,
   getCustomerServiceApplication,
   getCustomerWorkItems,
+  getCustomerWorkItem,
   getCustomerSalesmen,
   getCustomerOutlets,
   getCustomerVerifications,
   getCustomerVerification,
   reviewApplication,
+  startCustomerContact,
   recordContactResult,
+  verifyCustomerInfo,
+  recordCustomerIntention,
+  correctCustomerInfo,
+  selectServiceType,
   retryContact,
   selectServiceMode,
   confirmAppointment,

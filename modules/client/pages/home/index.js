@@ -2,9 +2,10 @@ const { getSession } = require('../../../../core/auth/session')
 const { ROLES } = require('../../../../core/auth/roles')
 const { request } = require('../../../../services/api-client')
 const { getEntrySource, parseScannedEntry, saveEntrySource } = require('../../../../core/router/entry-source')
+const { getQualificationDraft } = require('../../../../core/client/qualification-draft')
 const { fetchEntrySource, bindEntrySource } = require('../../../../services/entry-source-service')
 
-const BLOCKING_STATUSES = new Set(['PENDING_REVIEW', 'PENDING_CONTACT', 'CONTACT_FAILED', 'PENDING_SERVICE_MODE', 'PENDING_APPOINTMENT', 'PENDING_DISPATCH', 'PENDING_SERVICE', 'IN_SERVICE', 'PENDING_STORE_SERVICE', 'IN_STORE_SERVICE', 'PENDING_VERIFICATION', 'VERIFICATION_RETURNED'])
+const BLOCKING_STATUSES = new Set(['PENDING', 'CONTACTING', 'VERIFYING', 'VERIFIED', 'INVALID_INFO', 'CORRECTING', 'CONFIRMED', 'DISPATCHING', 'ASSIGNED', 'PROCESSING', 'PENDING_VERIFICATION', 'VERIFICATION_RETURNED', 'PENDING_REVIEW', 'PENDING_CONTACT', 'CONTACT_FAILED', 'PENDING_SERVICE_MODE', 'PENDING_APPOINTMENT', 'PENDING_DISPATCH', 'PENDING_SERVICE', 'IN_SERVICE', 'PENDING_STORE_SERVICE', 'IN_STORE_SERVICE'])
 
 function maskPhone(phone) {
   return phone ? `${phone.slice(0, 3)} **** ${phone.slice(-4)}` : ''
@@ -12,7 +13,7 @@ function maskPhone(phone) {
 
 Page({
   data: {
-    maskedPhone: '', screening: null, applicationId: '', hasMerchantInvite: false,
+    maskedPhone: '', screening: null, applicationId: '', hasMerchantInvite: false, hasDraft: false,
     summary: '请扫描商家提供的专属二维码，扫码后方可填写办理资料。',
     statusText: '等待扫码'
   },
@@ -23,16 +24,23 @@ Page({
       return
     }
     const source = getEntrySource(session.userId)
-    this.setData({ maskedPhone: maskPhone(session.phone), hasMerchantInvite: Boolean(source && source.inviteCode) })
+    const hasMerchantInvite = Boolean(source && source.inviteCode)
+    this.setData({
+      maskedPhone: maskPhone(session.phone), hasMerchantInvite,
+      hasDraft: hasMerchantInvite && Boolean(getQualificationDraft(session.userId, source.inviteCode))
+    })
     fetchEntrySource().then(result => {
       const syncedSource = result.source || null
       this.scheduleEntryExpiry(syncedSource)
       const hasMerchantInvite = Boolean(syncedSource && syncedSource.inviteCode)
-      const state = { hasMerchantInvite }
+      const hasDraft = hasMerchantInvite && Boolean(getQualificationDraft(session.userId, syncedSource.inviteCode))
+      const state = { hasMerchantInvite, hasDraft }
       if (!this.data.screening) {
         state.statusText = hasMerchantInvite ? '已扫码' : '等待扫码'
-        state.summary = hasMerchantInvite
-          ? '已识别商家二维码，可以继续填写本次办理资料。'
+        state.summary = hasDraft
+          ? '本次办理资料尚未提交，可以继续填写。'
+          : hasMerchantInvite
+            ? '已识别商家二维码，可以填写本次办理资料。'
           : '请扫描商家提供的专属二维码，扫码后方可填写办理资料。'
       }
       this.setData(state)
@@ -43,7 +51,7 @@ Page({
       this.setData({
         screening: screening || null,
         applicationId: screening ? screening.id : '',
-        summary: screening ? (screening.statusDescription || '申请已提交，请留意后续业务进度。') : (this.data.hasMerchantInvite ? '已识别商家二维码，可以继续填写本次办理资料。' : '请扫描商家提供的专属二维码，扫码后方可填写办理资料。'),
+        summary: screening ? (screening.statusDescription || '申请已提交，请留意后续业务进度。') : (this.data.hasDraft ? '本次办理资料尚未提交，可以继续填写。' : this.data.hasMerchantInvite ? '已识别商家二维码，可以填写本次办理资料。' : '请扫描商家提供的专属二维码，扫码后方可填写办理资料。'),
         statusText: screening ? (screening.statusText || '处理中') : (this.data.hasMerchantInvite ? '已扫码' : '等待扫码')
       })
     }).catch(error => this.setData({ summary: error.message }))
@@ -78,7 +86,7 @@ Page({
         }
         const session = getSession()
         saveEntrySource(source, session && session.userId)
-        this.setData({ hasMerchantInvite: true, statusText: '已扫码', summary: '已识别商家二维码，可以填写本次办理资料。' })
+        this.setData({ hasMerchantInvite: true, hasDraft: false, statusText: '已扫码', summary: '已识别商家二维码，可以填写本次办理资料。' })
         bindEntrySource(source)
           .then(result => {
             this.scheduleEntryExpiry(result.source)

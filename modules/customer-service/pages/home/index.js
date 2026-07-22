@@ -21,10 +21,10 @@ Page({
         applications: applications.slice(0, 4), loading: false, message: '',
         stats: {
           review: reviews.length,
-          pendingDispatch: workItems.filter(item => item.status === 'PENDING_DISPATCH').length,
-          dispatched: workItems.filter(item => ['PENDING_SERVICE', 'IN_SERVICE', 'PENDING_STORE_SERVICE', 'IN_STORE_SERVICE', 'VERIFICATION_RETURNED'].includes(item.status)).length,
+          pendingDispatch: workItems.filter(item => ['CONFIRMED', 'DISPATCHING'].includes(item.status)).length,
+          dispatched: workItems.filter(item => ['ASSIGNED', 'PROCESSING', 'VERIFICATION_RETURNED'].includes(item.status)).length,
           pendingVerification: verifications.length,
-          completed: workItems.filter(item => item.status === 'SERVICE_COMPLETED').length,
+          completed: workItems.filter(item => item.status === 'COMPLETED').length,
           total: applications.length
         }
       })

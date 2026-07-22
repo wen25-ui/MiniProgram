@@ -31,9 +31,9 @@ Page({
   },
   applyFilter(filter) {
     const groups = {
-      pending: ['PENDING_DISPATCH'],
-      dispatched: ['PENDING_SERVICE', 'IN_SERVICE', 'PENDING_STORE_SERVICE', 'IN_STORE_SERVICE', 'VERIFICATION_RETURNED'],
-      completed: ['SERVICE_COMPLETED', 'SERVICE_FAILED', 'CLIENT_DECLINED', 'CLOSED']
+      pending: ['CONFIRMED', 'DISPATCHING'],
+      dispatched: ['ASSIGNED', 'PROCESSING', 'VERIFICATION_RETURNED'],
+      completed: ['COMPLETED', 'SERVICE_FAILED', 'CANCELLED', 'CLOSED']
     }
     let filtered = this.data.applications.filter(item => (groups[filter] || []).includes(item.status))
     if (filter === 'dispatched' && this.data.dispatchType !== 'all') filtered = filtered.filter(item => item.serviceMode === this.data.dispatchType)

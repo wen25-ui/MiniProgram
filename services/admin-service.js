@@ -21,4 +21,13 @@ function deleteAccount(role, id) {
   return request(accountsPath(role, id), { method: 'DELETE', session: getSession(), data: {} })
 }
 
-module.exports = { listAccounts, createAccount, updateAccount, deleteAccount }
+function listOrders(status) {
+  const query = status ? `?status=${encodeURIComponent(status)}` : ''
+  return request(`/v1/admin/orders${query}`, { session: getSession() }).then(data => data.orders || [])
+}
+
+function getOrder(id) {
+  return request(`/v1/admin/orders/${id}`, { session: getSession() }).then(data => data.order)
+}
+
+module.exports = { listAccounts, createAccount, updateAccount, deleteAccount, listOrders, getOrder }

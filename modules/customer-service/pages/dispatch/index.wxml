@@ -1,4 +1,5 @@
 <view class="page">
+  <view class="sticky-filter">
   <view class="header"><text class="title">任务派遣中心</text><text class="desc">按审核确认的办理方式指定网点或派遣人员</text></view>
   <view class="filters"><view class="filter-row" style="width:100%">
     <view class="{{filter==='pending'?'active':''}}" data-filter="pending" bindtap="chooseFilter">待派遣</view>
@@ -6,6 +7,7 @@
     <view class="{{filter==='completed'?'active':''}}" data-filter="completed" bindtap="chooseFilter">已完成派遣</view>
   </view></view>
   <picker wx:if="{{filter==='dispatched'}}" range="{{dispatchTypeOptions}}" range-key="label" value="{{dispatchTypeIndex}}" bindchange="onDispatchTypeChange"><view style="margin:-8rpx 0 20rpx;padding:20rpx 24rpx;display:flex;justify-content:space-between;border-radius:14rpx;background:#fff;color:#53667a;font-size:23rpx"><text>派遣类型：{{dispatchTypeOptions[dispatchTypeIndex].label}}</text><text style="color:#0f7f89">下拉筛选⌄</text></view></picker>
+  </view>
   <text wx:if="{{message}}" class="message">{{message}}</text>
   <view wx:if="{{loading}}" class="empty">正在读取客服任务…</view>
 
@@ -14,7 +16,7 @@
     <text class="description">{{item.statusDescription}}</text>
     <view style="margin-top:16rpx;padding:16rpx;border-radius:12rpx;background:#f6f9fa;color:#607286;font-size:21rpx"><text>派遣类型：{{item.serviceMode==='HOME_SERVICE'?'上门办理':item.serviceMode==='STORE_SERVICE'?'指定网点办理':'待确认'}}</text><text wx:if="{{item.serviceMode==='HOME_SERVICE'&&item.salesmanName}}" style="display:block;margin-top:8rpx">业务员：{{item.salesmanName}}</text><text wx:if="{{item.serviceMode==='STORE_SERVICE'&&item.merchantName}}" style="display:block;margin-top:8rpx">指定网点：{{item.merchantName}}</text></view>
 
-    <block wx:if="{{item.status==='PENDING_DISPATCH'}}">
+    <block wx:if="{{item.status==='CONFIRMED'}}">
       <picker wx:if="{{item.serviceMode==='HOME_SERVICE'&&homeSalesmen.length}}" range="{{homeSalesmen}}" range-key="name" data-id="{{item.id}}" bindchange="onDispatchChange"><view class="picker">选择上门型派遣人员 ›</view></picker>
       <view wx:if="{{item.serviceMode==='HOME_SERVICE'&&homeSalesmen.length}}" style="margin-top:10rpx;color:#8a97a6;font-size:20rpx;text-align:center">仅显示启用的上门型业务员</view>
       <view wx:if="{{item.serviceMode==='HOME_SERVICE'&&!homeSalesmen.length}}" class="warning">暂无可派遣的上门型业务员，请管理员创建或调整业务员类型。</view>

@@ -111,10 +111,47 @@ async function ensureServiceFlow() {
   }
 }
 
+async function constraintExists(name) {
+  const [[row]] = await db.execute(
+    'SELECT 1 AS found FROM information_schema.TABLE_CONSTRAINTS WHERE CONSTRAINT_SCHEMA = ? AND CONSTRAINT_NAME = ? LIMIT 1',
+    [config.db.database, name]
+  )
+  return Boolean(row)
+}
+
+async function ensureCustomerAuditFlow() {
+  const columns = await columnNames()
+  const additions = []
+  if (!columns.has('verify_result')) additions.push('ADD COLUMN verify_result VARCHAR(32) NULL AFTER service_mode')
+  if (!columns.has('customer_intention')) additions.push('ADD COLUMN customer_intention VARCHAR(32) NULL AFTER verify_result')
+  if (!columns.has('verification_remark')) additions.push('ADD COLUMN verification_remark VARCHAR(500) NULL AFTER customer_intention')
+  if (!columns.has('corrected_info')) additions.push('ADD COLUMN corrected_info JSON NULL AFTER verification_remark')
+  if (!columns.has('verified_by_user_id')) additions.push('ADD COLUMN verified_by_user_id BIGINT UNSIGNED NULL AFTER corrected_info')
+  if (!columns.has('verified_at')) additions.push('ADD COLUMN verified_at DATETIME(3) NULL AFTER verified_by_user_id')
+  if (!columns.has('intention_confirmed_at')) additions.push('ADD COLUMN intention_confirmed_at DATETIME(3) NULL AFTER verified_at')
+  if (additions.length) await db.query(`ALTER TABLE applications ${additions.join(', ')}`)
+
+  if (!(await constraintExists('fk_applications_verifier'))) {
+    await db.query('ALTER TABLE applications ADD CONSTRAINT fk_applications_verifier FOREIGN KEY (verified_by_user_id) REFERENCES users(id)')
+  }
+
+  const verifyClause = await checkClause('chk_applications_verify_result')
+  if (!verifyClause) await db.query("ALTER TABLE applications ADD CONSTRAINT chk_applications_verify_result CHECK (verify_result IS NULL OR verify_result IN ('VERIFIED', 'INVALID_INFO'))")
+  const intentionClause = await checkClause('chk_applications_customer_intention')
+  if (!intentionClause) await db.query("ALTER TABLE applications ADD CONSTRAINT chk_applications_customer_intention CHECK (customer_intention IS NULL OR customer_intention IN ('WILLING', 'UNWILLING'))")
+  const statusClause = await checkClause('chk_applications_status')
+  if (!statusClause.includes("'CONTACTING'")) {
+    if (statusClause) await db.query('ALTER TABLE applications DROP CHECK chk_applications_status')
+    await db.query("ALTER TABLE applications ADD CONSTRAINT chk_applications_status CHECK (status IN ('DEMAND_SUBMITTED', 'APPLICATION_SUBMITTED', 'PRE_SCREEN_REJECTED', 'PENDING', 'CONTACTING', 'VERIFYING', 'VERIFIED', 'INVALID_INFO', 'CORRECTING', 'CONFIRMED', 'CANCELLED', 'DISPATCHING', 'ASSIGNED', 'PROCESSING', 'COMPLETED', 'PENDING_REVIEW', 'REVIEW_REJECTED', 'PENDING_CONTACT', 'CONTACT_FAILED', 'CLIENT_DECLINED', 'PENDING_SERVICE_MODE', 'PENDING_APPOINTMENT', 'PENDING_DISPATCH', 'PENDING_SERVICE', 'IN_SERVICE', 'PENDING_STORE_SERVICE', 'IN_STORE_SERVICE', 'SERVICE_FAILED', 'PENDING_VERIFICATION', 'VERIFICATION_RETURNED', 'SERVICE_COMPLETED', 'WITHDRAWN', 'CLOSED'))")
+  }
+  await db.query("UPDATE applications SET status = CASE status WHEN 'PENDING_REVIEW' THEN 'PENDING' WHEN 'PENDING_CONTACT' THEN 'CONTACTING' WHEN 'CONTACT_FAILED' THEN 'CONTACTING' WHEN 'PENDING_SERVICE_MODE' THEN 'CONFIRMED' WHEN 'PENDING_APPOINTMENT' THEN 'CONFIRMED' WHEN 'PENDING_DISPATCH' THEN 'DISPATCHING' WHEN 'PENDING_SERVICE' THEN 'ASSIGNED' WHEN 'PENDING_STORE_SERVICE' THEN 'ASSIGNED' WHEN 'IN_SERVICE' THEN 'PROCESSING' WHEN 'IN_STORE_SERVICE' THEN 'PROCESSING' WHEN 'REVIEW_REJECTED' THEN 'CANCELLED' WHEN 'CLIENT_DECLINED' THEN 'CANCELLED' WHEN 'SERVICE_COMPLETED' THEN 'COMPLETED' ELSE status END")
+}
+
 async function run() {
   await ensureLocalAnswerColumns()
   await ensureExpenseTierConstraint()
   await ensureServiceFlow()
+  await ensureCustomerAuditFlow()
   await ensureWithdrawnStatus()
   await ensureAdminRole()
   await ensureLoginName()

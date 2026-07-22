@@ -12,11 +12,11 @@ const FILTERS = [
 ]
 
 const GROUPS = {
-  review: ['PENDING_REVIEW'],
-  pendingDispatch: ['PENDING_DISPATCH'],
-  dispatched: ['PENDING_SERVICE', 'IN_SERVICE', 'PENDING_STORE_SERVICE', 'IN_STORE_SERVICE', 'VERIFICATION_RETURNED'],
+  review: ['PENDING', 'CONTACTING', 'VERIFYING', 'VERIFIED', 'INVALID_INFO', 'CORRECTING'],
+  pendingDispatch: ['CONFIRMED', 'DISPATCHING'],
+  dispatched: ['ASSIGNED', 'PROCESSING', 'VERIFICATION_RETURNED'],
   pendingVerification: ['PENDING_VERIFICATION'],
-  completed: ['SERVICE_COMPLETED']
+  completed: ['COMPLETED']
 }
 
 Page({
@@ -45,5 +45,6 @@ Page({
     const statuses = GROUPS[filter]
     this.setData({ filter, filtered: statuses ? this.data.records.filter(item => statuses.includes(item.status)) : this.data.records })
   },
-  chooseFilter(event) { this.applyFilter(event.currentTarget.dataset.filter) }
+  chooseFilter(event) { this.applyFilter(event.currentTarget.dataset.filter) },
+  openDetail(event) { wx.navigateTo({ url: `/modules/customer-service/pages/business-detail/index?id=${event.currentTarget.dataset.id}` }) }
 })

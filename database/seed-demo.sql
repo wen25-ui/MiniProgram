@@ -66,64 +66,64 @@ INSERT INTO applications (
   commitments, pre_screen_passed, pre_screen_status, rule_version, status, screening_submitted_at
 )
 SELECT '10000000-0000-4000-8000-000000000001', @client_review_id, @merchant_id, @invite_id, 'merchant_qr', '13912345678',
-  'QUERY_SUCCESS', '广东省', '深圳市', 'LOCAL_RESIDENT', 'FROM_250', JSON_ARRAY(true, true, true, true), 1, 'PENDING_REVIEW', 'demo-v1', 'PENDING_REVIEW', NOW(3)
+  'QUERY_SUCCESS', '广东省', '深圳市', 'LOCAL_RESIDENT', 'FROM_250', JSON_ARRAY(true, true, true, true), 1, 'PENDING', 'demo-v1', 'PENDING', NOW(3)
 WHERE NOT EXISTS (SELECT 1 FROM applications WHERE id = '10000000-0000-4000-8000-000000000001');
 
 INSERT INTO applications (
   id, client_user_id, merchant_id, merchant_invite_id, source_type, phone_snapshot,
   attribution_status, attribution_province, attribution_city, local_option, expense_tier,
-  commitments, pre_screen_passed, pre_screen_status, rule_version, status, appointment_time, screening_submitted_at
+  commitments, pre_screen_passed, pre_screen_status, rule_version, status, service_mode, appointment_time, screening_submitted_at
 )
 SELECT '10000000-0000-4000-8000-000000000002', @client_dispatch_id, @merchant_id, @invite_id, 'merchant_qr', '13912345679',
-  'QUERY_SUCCESS', '广东省', '深圳市', 'LOCAL_NUMBER', 'FROM_400', JSON_ARRAY(true, true, true, true), 1, 'PENDING_REVIEW', 'demo-v1', 'PENDING_DISPATCH', '2026-07-21 10:00:00', NOW(3)
+  'QUERY_SUCCESS', '广东省', '深圳市', 'LOCAL_NUMBER', 'FROM_400', JSON_ARRAY(true, true, true, true), 1, 'PENDING', 'demo-v1', 'CONFIRMED', 'HOME_SERVICE', '2026-07-21 10:00:00', NOW(3)
 WHERE NOT EXISTS (SELECT 1 FROM applications WHERE id = '10000000-0000-4000-8000-000000000002');
 
 INSERT INTO applications (
   id, client_user_id, merchant_id, merchant_invite_id, source_type, phone_snapshot,
   attribution_status, attribution_province, attribution_city, local_option, expense_tier,
-  commitments, pre_screen_passed, pre_screen_status, rule_version, status, appointment_time, assigned_salesman_user_id, screening_submitted_at
+  commitments, pre_screen_passed, pre_screen_status, rule_version, status, service_mode, appointment_time, assigned_salesman_user_id, screening_submitted_at
 )
 SELECT '10000000-0000-4000-8000-000000000003', @client_service_id, @merchant_id, @invite_id, 'merchant_qr', '13912345670',
-  'QUERY_SUCCESS', '广东省', '深圳市', 'ACCEPT_LOCAL_CARD', 'FROM_150', JSON_ARRAY(true, true, true, true), 1, 'PENDING_REVIEW', 'demo-v1', 'PENDING_SERVICE', '2026-07-21 14:00:00', @salesman_user_id, NOW(3)
+  'QUERY_SUCCESS', '广东省', '深圳市', 'ACCEPT_LOCAL_CARD', 'FROM_150', JSON_ARRAY(true, true, true, true), 1, 'PENDING', 'demo-v1', 'ASSIGNED', 'HOME_SERVICE', '2026-07-21 14:00:00', @salesman_user_id, NOW(3)
 WHERE NOT EXISTS (SELECT 1 FROM applications WHERE id = '10000000-0000-4000-8000-000000000003');
 
 INSERT INTO applications (
   id, client_user_id, merchant_id, merchant_invite_id, source_type, phone_snapshot,
   attribution_status, attribution_province, attribution_city, local_option, expense_tier,
-  commitments, pre_screen_passed, pre_screen_status, rule_version, status, appointment_time, assigned_salesman_user_id, screening_submitted_at
+  commitments, pre_screen_passed, pre_screen_status, rule_version, status, service_mode, appointment_time, assigned_salesman_user_id, screening_submitted_at
 )
 SELECT '10000000-0000-4000-8000-000000000004', @client_verify_id, @merchant_id, @invite_id, 'merchant_qr', '13912345671',
-  'QUERY_SUCCESS', '广东省', '深圳市', 'LOCAL_RESIDENT', 'FROM_250', JSON_ARRAY(true, true, true, true), 1, 'PENDING_REVIEW', 'demo-v1', 'PENDING_VERIFICATION', '2026-07-20 15:00:00', @salesman_user_id, NOW(3)
+  'QUERY_SUCCESS', '广东省', '深圳市', 'LOCAL_RESIDENT', 'FROM_250', JSON_ARRAY(true, true, true, true), 1, 'PENDING', 'demo-v1', 'PENDING_VERIFICATION', 'HOME_SERVICE', '2026-07-20 15:00:00', @salesman_user_id, NOW(3)
 WHERE NOT EXISTS (SELECT 1 FROM applications WHERE id = '10000000-0000-4000-8000-000000000004');
 
 INSERT INTO applications (
   id, client_user_id, merchant_id, merchant_invite_id, source_type, phone_snapshot,
   attribution_status, attribution_province, attribution_city, local_option, expense_tier,
-  commitments, pre_screen_passed, pre_screen_status, rule_version, status, appointment_time, assigned_salesman_user_id, refund_status, screening_submitted_at
+  commitments, pre_screen_passed, pre_screen_status, rule_version, status, service_mode, appointment_time, assigned_salesman_user_id, refund_status, screening_submitted_at
 )
 SELECT '10000000-0000-4000-8000-000000000005', @client_completed_id, @merchant_id, @invite_id, 'merchant_qr', '13912345672',
-  'QUERY_SUCCESS', '广东省', '深圳市', 'LOCAL_NUMBER', 'FROM_400', JSON_ARRAY(true, true, true, true), 1, 'PENDING_REVIEW', 'demo-v1', 'SERVICE_COMPLETED', '2026-07-19 10:00:00', @salesman_user_id, 'PENDING_CONFIRMATION', NOW(3)
+  'QUERY_SUCCESS', '广东省', '深圳市', 'LOCAL_NUMBER', 'FROM_400', JSON_ARRAY(true, true, true, true), 1, 'PENDING', 'demo-v1', 'COMPLETED', 'HOME_SERVICE', '2026-07-19 10:00:00', @salesman_user_id, 'PENDING_CONFIRMATION', NOW(3)
 WHERE NOT EXISTS (SELECT 1 FROM applications WHERE id = '10000000-0000-4000-8000-000000000005');
 
 INSERT INTO applications (
   id, client_user_id, merchant_id, merchant_invite_id, source_type, phone_snapshot,
   attribution_status, attribution_province, attribution_city, local_option, expense_tier,
-  commitments, pre_screen_passed, pre_screen_status, rule_version, status, appointment_time, assigned_salesman_user_id, expected_refund_amount, refund_status, screening_submitted_at
+  commitments, pre_screen_passed, pre_screen_status, rule_version, status, service_mode, appointment_time, assigned_salesman_user_id, expected_refund_amount, refund_status, screening_submitted_at
 )
 SELECT '10000000-0000-4000-8000-000000000006', @client_posted_id, @merchant_id, @invite_id, 'merchant_qr', '13912345673',
-  'QUERY_SUCCESS', '广东省', '深圳市', 'LOCAL_RESIDENT', 'FROM_400', JSON_ARRAY(true, true, true, true), 1, 'PENDING_REVIEW', 'demo-v1', 'SERVICE_COMPLETED', '2026-07-18 14:00:00', @salesman_user_id, 800.00, 'REFUND_POSTED', NOW(3)
+  'QUERY_SUCCESS', '广东省', '深圳市', 'LOCAL_RESIDENT', 'FROM_400', JSON_ARRAY(true, true, true, true), 1, 'PENDING', 'demo-v1', 'COMPLETED', 'HOME_SERVICE', '2026-07-18 14:00:00', @salesman_user_id, 800.00, 'REFUND_POSTED', NOW(3)
 WHERE NOT EXISTS (SELECT 1 FROM applications WHERE id = '10000000-0000-4000-8000-000000000006');
 
 INSERT INTO application_status_history (application_id, to_status, action_code, operator_user_id, operator_role)
-SELECT '10000000-0000-4000-8000-000000000001', 'PENDING_REVIEW', 'PRE_SCREEN_PASSED', NULL, 'system'
+SELECT '10000000-0000-4000-8000-000000000001', 'PENDING', 'PRE_SCREEN_PASSED', NULL, 'system'
 WHERE NOT EXISTS (SELECT 1 FROM application_status_history WHERE application_id = '10000000-0000-4000-8000-000000000001' AND action_code = 'PRE_SCREEN_PASSED');
 
 INSERT INTO application_status_history (application_id, to_status, action_code, operator_user_id, operator_role)
-SELECT '10000000-0000-4000-8000-000000000002', 'PENDING_DISPATCH', 'APPOINTMENT_CONFIRMED', @service_user_id, 'customer-service'
+SELECT '10000000-0000-4000-8000-000000000002', 'CONFIRMED', 'SERVICE_TYPE_CONFIRMED', @service_user_id, 'customer-service'
 WHERE NOT EXISTS (SELECT 1 FROM application_status_history WHERE application_id = '10000000-0000-4000-8000-000000000002' AND action_code = 'APPOINTMENT_CONFIRMED');
 
 INSERT INTO application_status_history (application_id, to_status, action_code, operator_user_id, operator_role)
-SELECT '10000000-0000-4000-8000-000000000003', 'PENDING_SERVICE', 'DISPATCHED', @service_user_id, 'customer-service'
+SELECT '10000000-0000-4000-8000-000000000003', 'ASSIGNED', 'DISPATCHED', @service_user_id, 'customer-service'
 WHERE NOT EXISTS (SELECT 1 FROM application_status_history WHERE application_id = '10000000-0000-4000-8000-000000000003' AND action_code = 'DISPATCHED');
 
 INSERT INTO application_status_history (application_id, to_status, action_code, operator_user_id, operator_role)
@@ -131,11 +131,11 @@ SELECT '10000000-0000-4000-8000-000000000004', 'PENDING_VERIFICATION', 'FULFILLM
 WHERE NOT EXISTS (SELECT 1 FROM application_status_history WHERE application_id = '10000000-0000-4000-8000-000000000004' AND action_code = 'FULFILLMENT_SUBMITTED');
 
 INSERT INTO application_status_history (application_id, to_status, action_code, operator_user_id, operator_role)
-SELECT '10000000-0000-4000-8000-000000000005', 'SERVICE_COMPLETED', 'FULFILLMENT_VERIFIED', @service_user_id, 'customer-service'
+SELECT '10000000-0000-4000-8000-000000000005', 'COMPLETED', 'FULFILLMENT_VERIFIED', @service_user_id, 'customer-service'
 WHERE NOT EXISTS (SELECT 1 FROM application_status_history WHERE application_id = '10000000-0000-4000-8000-000000000005' AND action_code = 'FULFILLMENT_VERIFIED');
 
 INSERT INTO application_status_history (application_id, to_status, action_code, operator_user_id, operator_role)
-SELECT '10000000-0000-4000-8000-000000000006', 'SERVICE_COMPLETED', 'REFUND_POSTED', @finance_user_id, 'finance'
+SELECT '10000000-0000-4000-8000-000000000006', 'COMPLETED', 'REFUND_POSTED', @finance_user_id, 'finance'
 WHERE NOT EXISTS (SELECT 1 FROM application_status_history WHERE application_id = '10000000-0000-4000-8000-000000000006' AND action_code = 'REFUND_POSTED');
 
 INSERT INTO application_reviews (application_id, reviewer_user_id, decision, reason)

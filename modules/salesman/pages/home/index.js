@@ -11,8 +11,8 @@ Page({
       session,
       applications: applications.slice(0, 4),
       stats: {
-        waiting: applications.filter(item => ['PENDING_SERVICE', 'PENDING_STORE_SERVICE'].includes(item.status)).length,
-        servicing: applications.filter(item => ['IN_SERVICE', 'IN_STORE_SERVICE', 'VERIFICATION_RETURNED'].includes(item.status)).length,
+        waiting: applications.filter(item => item.status === 'ASSIGNED').length,
+        servicing: applications.filter(item => ['PROCESSING', 'VERIFICATION_RETURNED'].includes(item.status)).length,
         verification: applications.filter(item => item.status === 'PENDING_VERIFICATION').length
       },
       loading: false,

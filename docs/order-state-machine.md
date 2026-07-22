@@ -1,5 +1,18 @@
 # 订单状态机
 
+## 2026-07-22 客服审核主状态
+
+```text
+PENDING → CONTACTING → VERIFYING
+  ├─ VERIFIED → CONFIRMED
+  └─ INVALID_INFO → CORRECTING → VERIFIED → CONFIRMED
+
+CONFIRMED → DISPATCHING → ASSIGNED → PROCESSING → COMPLETED
+VERIFIED / INVALID_INFO → CANCELLED（客户无办理意愿）
+```
+
+预审、撤回、办理失败、待核销及核销退回状态继续作为兼容和异常流程状态保留。
+
 ## 2026-07-20 办理流程补全
 
 人工审核通过后的流程统一为：

@@ -1,6 +1,18 @@
 const { ORDER_STATUS } = require('./status')
 
 const CLIENT_PROGRESS = Object.freeze({
+  [ORDER_STATUS.PENDING]: { label: '待审核', description: '申请已提交，等待客服审核。' },
+  [ORDER_STATUS.CONTACTING]: { label: '联系确认中', description: '客服正在联系您核实申请信息。' },
+  [ORDER_STATUS.VERIFYING]: { label: '信息核实中', description: '客服正在核实您提交的信息。' },
+  [ORDER_STATUS.VERIFIED]: { label: '信息核实完成', description: '信息已核实，等待确认办理意愿和方式。' },
+  [ORDER_STATUS.INVALID_INFO]: { label: '信息待更正', description: '部分申请信息需要进一步确认。' },
+  [ORDER_STATUS.CORRECTING]: { label: '信息修正中', description: '客服正在协助更正申请信息。' },
+  [ORDER_STATUS.CONFIRMED]: { label: '已确认办理', description: '办理方式已确认，等待安排任务。' },
+  [ORDER_STATUS.CANCELLED]: { label: '已取消', description: '本次申请已取消，您可以重新提交申请。' },
+  [ORDER_STATUS.DISPATCHING]: { label: '派单中', description: '正在分配办理网点或工作人员。' },
+  [ORDER_STATUS.ASSIGNED]: { label: '已派单', description: '任务已分配，等待工作人员处理。' },
+  [ORDER_STATUS.PROCESSING]: { label: '处理中', description: '工作人员正在处理业务。' },
+  [ORDER_STATUS.COMPLETED]: { label: '已完成', description: '业务办理已完成。' },
   [ORDER_STATUS.PRE_SCREEN_REJECTED]: { label: '预审待补充', description: '请补充预审资料后再次提交。' },
   [ORDER_STATUS.PENDING_REVIEW]: { label: '待客服复审', description: '客服将核实活动资格、合约记录及欠费情况。' },
   [ORDER_STATUS.REVIEW_REJECTED]: { label: '审核未通过', description: '本次申请未通过人工审核。' },
