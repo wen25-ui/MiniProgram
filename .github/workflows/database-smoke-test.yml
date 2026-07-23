@@ -1,0 +1,135 @@
+name: Database Smoke Test
+
+on:
+  push:
+    branches:
+      - agent/github-ci-database-test
+    paths:
+      - 'server/**'
+      - 'database/**'
+      - '.github/workflows/database-smoke-test.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: database-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  database-smoke-test:
+    name: Remote MySQL and API health
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+
+    defaults:
+      run:
+        working-directory: server
+
+    env:
+      PORT: '3000'
+      API_HOST: '127.0.0.1'
+      DB_HOST: 'mysql6.sqlpub.com'
+      DB_PORT: '3311'
+      DB_NAME: 'wx_xcxkf'
+      DB_USER: 'gongbw'
+      DB_PASSWORD: 'szeyQss5AIaYPfdx'
+      SESSION_TTL_DAYS: '30'
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check remote database in a read-only transaction
+        shell: bash
+        run: |
+          node <<'NODE'
+          const mysql = require('mysql2/promise')
+
+          async function main() {
+            const connection = await mysql.createConnection({
+              host: process.env.DB_HOST,
+              port: Number(process.env.DB_PORT),
+              database: process.env.DB_NAME,
+              user: process.env.DB_USER,
+              password: process.env.DB_PASSWORD,
+              connectTimeout: 15000,
+              charset: 'utf8mb4'
+            })
+
+            try {
+              await connection.query('SET SESSION TRANSACTION READ ONLY')
+              await connection.query('START TRANSACTION READ ONLY')
+
+              const [[info]] = await connection.query(
+                'SELECT DATABASE() AS databaseName, VERSION() AS databaseVersion, CURRENT_USER() AS currentUser'
+              )
+              const [tables] = await connection.query('SHOW TABLES')
+
+              console.log('Database connection succeeded.')
+              console.log(`Database: ${info.databaseName}`)
+              console.log(`Version: ${info.databaseVersion}`)
+              console.log(`Current user: ${info.currentUser}`)
+              console.log(`Table count: ${tables.length}`)
+
+              await connection.rollback()
+            } finally {
+              await connection.end()
+            }
+          }
+
+          main().catch(error => {
+            console.error('Database smoke test failed.')
+            console.error(error.message)
+            process.exit(1)
+          })
+          NODE
+
+      - name: Start API service
+        shell: bash
+        run: |
+          node src/index.js > "$RUNNER_TEMP/miniprogram-api.log" 2>&1 &
+          echo $! > "$RUNNER_TEMP/miniprogram-api.pid"
+
+      - name: Check API health endpoint
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for attempt in $(seq 1 20); do
+            if response=$(curl --fail --silent --show-error http://127.0.0.1:3000/health); then
+              echo "$response"
+              node -e "const value = JSON.parse(process.argv[1]); if (value.ok !== true) process.exit(1)" "$response"
+              echo 'API health check succeeded.'
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo 'API health check failed.'
+          cat "$RUNNER_TEMP/miniprogram-api.log" || true
+          exit 1
+
+      - name: Show API log on failure
+        if: failure()
+        shell: bash
+        run: cat "$RUNNER_TEMP/miniprogram-api.log" || true
+
+      - name: Stop API service
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f "$RUNNER_TEMP/miniprogram-api.pid" ]]; then
+            kill "$(cat "$RUNNER_TEMP/miniprogram-api.pid")" 2>/dev/null || true
+          fi
