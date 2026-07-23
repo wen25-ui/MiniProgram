@@ -29,6 +29,8 @@ function taskView(item) {
     sourceText: SOURCE_TEXT[source] || SOURCE_TEXT.BRANCH_ASSIGN,
     projectName: item.projectName || item.businessType || item.serviceType || '业务返现办理',
     branchName: item.branchName || item.storeName || '暂未绑定网点',
+    serviceTypeText: item.serviceType === 'HOME_SERVICE' ? '外派办理任务' : '到店办理任务',
+    isFieldService: item.serviceType === 'HOME_SERVICE',
     contacts: item.contacts || [],
     history: item.history || []
   })

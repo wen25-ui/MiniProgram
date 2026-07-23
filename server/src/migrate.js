@@ -58,7 +58,6 @@ async function ensureSalesmanType() {
   if (!columns.has('salesman_type')) {
     await db.query("ALTER TABLE user_roles ADD COLUMN salesman_type VARCHAR(32) NULL AFTER salesman_code")
   }
-  await db.query("UPDATE user_roles SET salesman_type = 'HOME_VISIT' WHERE role_code = 'salesman' AND salesman_type IS NULL")
 }
 
 async function ensureClientEntrySources() {
@@ -242,12 +241,15 @@ async function ensureSalesmanTaskFlow() {
   if (!(await constraintExists('fk_fulfillment_task'))) await db.query('ALTER TABLE fulfillment_submissions ADD CONSTRAINT fk_fulfillment_task FOREIGN KEY (task_id) REFERENCES application_tasks(id)')
   if (!(await constraintExists('chk_fulfillment_result_status'))) await db.query("ALTER TABLE fulfillment_submissions ADD CONSTRAINT chk_fulfillment_result_status CHECK (result_status IN ('SUCCESS', 'FAILED'))")
 
+  const currentTaskColumns = await columnNames('application_tasks')
+  const branchColumns = currentTaskColumns.has('branch_id') ? ', branch_id, assign_type' : ''
+  const branchValues = currentTaskColumns.has('branch_id') ? ", a.branch_id, COALESCE(a.assign_type, 'BRANCH_ASSIGN')" : ''
   await db.query(`INSERT INTO application_tasks (
-      id, application_id, service_type, assignee_user_id, store_id, customer_id,
+      id, application_id, service_type, assignee_user_id, store_id${branchColumns}, customer_id,
       customer_name, customer_phone, status, appointment_time, started_at,
       result_uploaded_at, completed_at, fail_reason, created_at, updated_at
     )
-    SELECT UUID(), a.id, a.service_mode, a.assigned_salesman_user_id, a.assigned_merchant_id,
+    SELECT UUID(), a.id, a.service_mode, a.assigned_salesman_user_id, a.assigned_merchant_id${branchValues},
            a.client_user_id, u.display_name, a.phone_snapshot,
            CASE a.status WHEN 'ASSIGNED' THEN 'PENDING_ACCEPT' WHEN 'PROCESSING' THEN 'PROCESSING'
              WHEN 'PENDING_VERIFICATION' THEN 'PENDING_VERIFICATION' WHEN 'VERIFICATION_RETURNED' THEN 'WAITING_RESULT_UPLOAD'
@@ -319,6 +321,404 @@ async function ensureAdministrativeAreaDispatch() {
   await db.query("INSERT INTO schema_migrations (version) VALUES ('2026-07-22-administrative-area-dispatch') ON DUPLICATE KEY UPDATE version = VALUES(version)")
 }
 
+async function ensureBranchAssignmentModels() {
+  await db.query(`CREATE TABLE IF NOT EXISTS branches (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    merchant_id BIGINT UNSIGNED NOT NULL,
+    name VARCHAR(120) NOT NULL,
+    address VARCHAR(500) NULL,
+    contact_name VARCHAR(80) NULL,
+    contact_phone VARCHAR(20) NULL,
+    manager_id BIGINT UNSIGNED NULL,
+    status VARCHAR(24) NOT NULL DEFAULT 'ACTIVE',
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+    UNIQUE KEY uk_branches_merchant_name (merchant_id, name),
+    KEY idx_branches_merchant_status (merchant_id, status),
+    KEY idx_branches_manager (manager_id),
+    CONSTRAINT fk_branches_merchant FOREIGN KEY (merchant_id) REFERENCES merchants(id),
+    CONSTRAINT fk_branches_manager FOREIGN KEY (manager_id) REFERENCES users(id),
+    CONSTRAINT chk_branches_status CHECK (status IN ('ACTIVE', 'DISABLED'))
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci`)
+
+  const roleColumns = await columnNames('user_roles')
+  if (!roleColumns.has('branch_id')) await db.query('ALTER TABLE user_roles ADD COLUMN branch_id BIGINT UNSIGNED NULL AFTER assigned_merchant_id')
+  if (!(await indexExists('user_roles', 'idx_user_roles_salesman_branch'))) await db.query('CREATE INDEX idx_user_roles_salesman_branch ON user_roles (role_code, branch_id, user_id)')
+  if (!(await constraintExists('fk_user_roles_branch'))) await db.query('ALTER TABLE user_roles ADD CONSTRAINT fk_user_roles_branch FOREIGN KEY (branch_id) REFERENCES branches(id)')
+
+  const applicationColumns = await columnNames('applications')
+  const applicationAdditions = []
+  if (!applicationColumns.has('branch_id')) applicationAdditions.push('ADD COLUMN branch_id BIGINT UNSIGNED NULL AFTER assigned_merchant_id')
+  if (!applicationColumns.has('current_salesman_id')) applicationAdditions.push('ADD COLUMN current_salesman_id BIGINT UNSIGNED NULL AFTER branch_id')
+  if (!applicationColumns.has('assign_type')) applicationAdditions.push('ADD COLUMN assign_type VARCHAR(32) NULL AFTER current_salesman_id')
+  if (applicationAdditions.length) await db.query(`ALTER TABLE applications ${applicationAdditions.join(', ')}`)
+  if (!(await indexExists('applications', 'idx_applications_branch_status'))) await db.query('CREATE INDEX idx_applications_branch_status ON applications (branch_id, status, updated_at)')
+  if (!(await indexExists('applications', 'idx_applications_current_salesman_status'))) await db.query('CREATE INDEX idx_applications_current_salesman_status ON applications (current_salesman_id, status, updated_at)')
+  if (!(await constraintExists('fk_applications_branch'))) await db.query('ALTER TABLE applications ADD CONSTRAINT fk_applications_branch FOREIGN KEY (branch_id) REFERENCES branches(id)')
+  if (!(await constraintExists('fk_applications_current_salesman'))) await db.query('ALTER TABLE applications ADD CONSTRAINT fk_applications_current_salesman FOREIGN KEY (current_salesman_id) REFERENCES users(id)')
+  if (!(await constraintExists('chk_applications_assign_type'))) await db.query("ALTER TABLE applications ADD CONSTRAINT chk_applications_assign_type CHECK (assign_type IS NULL OR assign_type IN ('BRANCH_ASSIGN', 'SALESMAN_GRAB', 'TRANSFER'))")
+
+  const taskColumns = await columnNames('application_tasks')
+  const taskAdditions = []
+  if (!taskColumns.has('branch_id')) taskAdditions.push('ADD COLUMN branch_id BIGINT UNSIGNED NULL AFTER store_id')
+  if (!taskColumns.has('assign_type')) taskAdditions.push('ADD COLUMN assign_type VARCHAR(32) NULL AFTER branch_id')
+  if (taskAdditions.length) await db.query(`ALTER TABLE application_tasks ${taskAdditions.join(', ')}`)
+  if (!(await indexExists('application_tasks', 'idx_application_tasks_branch_pool'))) await db.query('CREATE INDEX idx_application_tasks_branch_pool ON application_tasks (branch_id, assignee_user_id, status, updated_at)')
+  if (!(await constraintExists('fk_application_tasks_branch'))) await db.query('ALTER TABLE application_tasks ADD CONSTRAINT fk_application_tasks_branch FOREIGN KEY (branch_id) REFERENCES branches(id)')
+  if (!(await constraintExists('chk_application_tasks_assign_type'))) await db.query("ALTER TABLE application_tasks ADD CONSTRAINT chk_application_tasks_assign_type CHECK (assign_type IS NULL OR assign_type IN ('BRANCH_ASSIGN', 'SALESMAN_GRAB', 'TRANSFER'))")
+
+  await db.query(`CREATE TABLE IF NOT EXISTS order_assignments (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    order_id CHAR(36) NOT NULL,
+    branch_id BIGINT UNSIGNED NULL,
+    salesman_id BIGINT UNSIGNED NULL,
+    assign_type VARCHAR(32) NOT NULL,
+    operator_id BIGINT UNSIGNED NULL,
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    KEY idx_order_assignments_order (order_id, created_at),
+    KEY idx_order_assignments_branch (branch_id, created_at),
+    KEY idx_order_assignments_salesman (salesman_id, created_at),
+    CONSTRAINT fk_order_assignments_order FOREIGN KEY (order_id) REFERENCES applications(id),
+    CONSTRAINT fk_order_assignments_branch FOREIGN KEY (branch_id) REFERENCES branches(id),
+    CONSTRAINT fk_order_assignments_salesman FOREIGN KEY (salesman_id) REFERENCES users(id),
+    CONSTRAINT fk_order_assignments_operator FOREIGN KEY (operator_id) REFERENCES users(id),
+    CONSTRAINT chk_order_assignments_type CHECK (assign_type IN ('BRANCH_ASSIGN', 'SALESMAN_GRAB', 'TRANSFER'))
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci`)
+  await db.query(`CREATE TABLE IF NOT EXISTS order_transfer_logs (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    order_id CHAR(36) NOT NULL,
+    from_salesman_id BIGINT UNSIGNED NOT NULL,
+    to_salesman_id BIGINT UNSIGNED NOT NULL,
+    reason VARCHAR(500) NOT NULL,
+    status VARCHAR(24) NOT NULL DEFAULT 'PENDING',
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    KEY idx_order_transfer_logs_order (order_id, created_at),
+    KEY idx_order_transfer_logs_receiver (to_salesman_id, status, created_at),
+    CONSTRAINT fk_order_transfer_logs_order FOREIGN KEY (order_id) REFERENCES applications(id),
+    CONSTRAINT fk_order_transfer_logs_from FOREIGN KEY (from_salesman_id) REFERENCES users(id),
+    CONSTRAINT fk_order_transfer_logs_to FOREIGN KEY (to_salesman_id) REFERENCES users(id),
+    CONSTRAINT chk_order_transfer_logs_status CHECK (status IN ('PENDING', 'ACCEPTED', 'REJECTED'))
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci`)
+  await db.query(`CREATE TABLE IF NOT EXISTS order_grab_records (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    order_id CHAR(36) NOT NULL,
+    salesman_id BIGINT UNSIGNED NOT NULL,
+    grab_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    result VARCHAR(32) NOT NULL,
+    KEY idx_order_grab_records_order (order_id, grab_time),
+    KEY idx_order_grab_records_salesman (salesman_id, grab_time),
+    CONSTRAINT fk_order_grab_records_order FOREIGN KEY (order_id) REFERENCES applications(id),
+    CONSTRAINT fk_order_grab_records_salesman FOREIGN KEY (salesman_id) REFERENCES users(id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci`)
+  await db.query(`CREATE TABLE IF NOT EXISTS review_questions (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    title VARCHAR(500) NOT NULL,
+    type VARCHAR(32) NOT NULL,
+    parent_id BIGINT UNSIGNED NULL,
+    parent_answer VARCHAR(500) NULL,
+    \`sort\` INT NOT NULL DEFAULT 0,
+    status VARCHAR(24) NOT NULL DEFAULT 'ACTIVE',
+    KEY idx_review_questions_parent_sort (parent_id, \`sort\`),
+    KEY idx_review_questions_status_sort (status, \`sort\`),
+    CONSTRAINT fk_review_questions_parent FOREIGN KEY (parent_id) REFERENCES review_questions(id),
+    CONSTRAINT chk_review_questions_status CHECK (status IN ('ACTIVE', 'DISABLED'))
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci`)
+  await db.query(`CREATE TABLE IF NOT EXISTS review_answers (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    order_id CHAR(36) NOT NULL,
+    question_id BIGINT UNSIGNED NOT NULL,
+    answer TEXT NOT NULL,
+    operator_id BIGINT UNSIGNED NOT NULL,
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    KEY idx_review_answers_order (order_id, created_at),
+    KEY idx_review_answers_question (question_id, created_at),
+    CONSTRAINT fk_review_answers_order FOREIGN KEY (order_id) REFERENCES applications(id),
+    CONSTRAINT fk_review_answers_question FOREIGN KEY (question_id) REFERENCES review_questions(id),
+    CONSTRAINT fk_review_answers_operator FOREIGN KEY (operator_id) REFERENCES users(id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci`)
+  await db.query(`CREATE TABLE IF NOT EXISTS customer_internal_tags (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    customer_id BIGINT UNSIGNED NOT NULL,
+    tag VARCHAR(80) NOT NULL,
+    operator_id BIGINT UNSIGNED NOT NULL,
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    UNIQUE KEY uk_customer_internal_tags_customer_tag (customer_id, tag),
+    KEY idx_customer_internal_tags_customer (customer_id, created_at),
+    CONSTRAINT fk_customer_internal_tags_customer FOREIGN KEY (customer_id) REFERENCES users(id),
+    CONSTRAINT fk_customer_internal_tags_operator FOREIGN KEY (operator_id) REFERENCES users(id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci`)
+  await db.query(`CREATE TABLE IF NOT EXISTS customer_internal_notes (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    customer_id BIGINT UNSIGNED NOT NULL,
+    content TEXT NOT NULL,
+    operator_id BIGINT UNSIGNED NOT NULL,
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    KEY idx_customer_internal_notes_customer (customer_id, created_at),
+    CONSTRAINT fk_customer_internal_notes_customer FOREIGN KEY (customer_id) REFERENCES users(id),
+    CONSTRAINT fk_customer_internal_notes_operator FOREIGN KEY (operator_id) REFERENCES users(id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci`)
+
+  await db.query(`INSERT INTO branches (merchant_id, name, address, contact_name, contact_phone, status, created_at, updated_at)
+    SELECT m.id, m.name, NULL, m.contact_name, m.contact_phone, m.status, m.created_at, m.updated_at
+      FROM merchants m
+     WHERE NOT EXISTS (SELECT 1 FROM branches b WHERE b.merchant_id = m.id AND b.name = m.name)`)
+  await db.query(`UPDATE user_roles r
+    JOIN merchants m ON m.id = r.assigned_merchant_id
+    JOIN branches b ON b.merchant_id = m.id AND b.name = m.name
+       SET r.branch_id = b.id
+     WHERE r.role_code = 'salesman' AND r.branch_id IS NULL`)
+  await db.query(`UPDATE applications a
+    JOIN merchants m ON m.id = a.assigned_merchant_id
+    JOIN branches b ON b.merchant_id = m.id AND b.name = m.name
+       SET a.branch_id = b.id
+     WHERE a.branch_id IS NULL`)
+  await db.query('UPDATE applications SET current_salesman_id = assigned_salesman_user_id WHERE current_salesman_id IS NULL AND assigned_salesman_user_id IS NOT NULL')
+  await db.query("UPDATE applications SET assign_type = 'BRANCH_ASSIGN' WHERE assign_type IS NULL AND (branch_id IS NOT NULL OR current_salesman_id IS NOT NULL)")
+  await db.query(`UPDATE application_tasks t
+    JOIN applications a ON a.id = t.application_id
+       SET t.branch_id = a.branch_id, t.assign_type = COALESCE(a.assign_type, 'BRANCH_ASSIGN')
+     WHERE t.branch_id IS NULL OR t.assign_type IS NULL`)
+  await db.query("INSERT INTO schema_migrations (version) VALUES ('2026-07-23-add-branch-and-assignment-models') ON DUPLICATE KEY UPDATE version = VALUES(version)")
+}
+
+async function salesmanOrganizationPreflight() {
+  const [salesmen] = await db.query(
+    `WITH candidate_branches AS (
+       SELECT b.id, b.merchant_id, b.name, b.status, m.area_id, m.service_region
+         FROM branches b JOIN merchants m ON m.id = b.merchant_id
+       UNION ALL
+       SELECT -m.id, m.id, m.name, m.status, m.area_id, m.service_region
+         FROM merchants m
+        WHERE NOT EXISTS (SELECT 1 FROM branches b WHERE b.merchant_id = m.id)
+     )
+     SELECT u.id, u.display_name, u.phone, r.salesman_type, r.service_region, r.area_id,
+            r.assigned_merchant_id, r.branch_id,
+            CASE
+              WHEN existing.id IS NOT NULL AND existing.status = 'ACTIVE' THEN existing.id
+              WHEN named_branch.candidate_count = 1 THEN named_branch.branch_id
+              WHEN merchant_branch.candidate_count = 1 THEN merchant_branch.branch_id
+              WHEN area_branch.candidate_count = 1 THEN area_branch.branch_id
+              WHEN region_branch.candidate_count = 1 THEN region_branch.branch_id
+              ELSE NULL
+            END AS mapped_branch_id
+       FROM users u
+       JOIN user_roles r ON r.user_id = u.id AND r.role_code = 'salesman'
+       LEFT JOIN branches existing ON existing.id = r.branch_id
+       LEFT JOIN (
+         SELECT cb.merchant_id, MIN(cb.id) AS branch_id, COUNT(*) AS candidate_count
+           FROM candidate_branches cb JOIN merchants m ON m.id = cb.merchant_id AND cb.name = m.name
+          WHERE cb.status = 'ACTIVE' GROUP BY cb.merchant_id
+       ) named_branch ON named_branch.merchant_id = r.assigned_merchant_id
+       LEFT JOIN (
+         SELECT merchant_id, MIN(id) AS branch_id, COUNT(*) AS candidate_count
+           FROM candidate_branches WHERE status = 'ACTIVE' GROUP BY merchant_id
+       ) merchant_branch ON merchant_branch.merchant_id = r.assigned_merchant_id
+       LEFT JOIN (
+         SELECT area_id, MIN(id) AS branch_id, COUNT(*) AS candidate_count
+           FROM candidate_branches WHERE status = 'ACTIVE' AND area_id IS NOT NULL GROUP BY area_id
+       ) area_branch ON area_branch.area_id = r.area_id
+       LEFT JOIN (
+         SELECT service_region, MIN(id) AS branch_id, COUNT(*) AS candidate_count
+           FROM candidate_branches
+          WHERE status = 'ACTIVE' AND service_region IS NOT NULL AND service_region <> ''
+          GROUP BY service_region
+       ) region_branch ON region_branch.service_region = r.service_region
+      WHERE u.account_status = 'ACTIVE'
+      ORDER BY u.id`
+  )
+  const unmapped = salesmen.filter(row => row.mapped_branch_id === null)
+  console.log(`数据库主机: ${config.db.host}`)
+  console.log(`数据库端口: ${config.db.port}`)
+  console.log(`数据库名称: ${config.db.database}`)
+  console.log('迁移文件: database/migrations/20260723_unify_salesman_branch_capability.sql')
+  console.log(`预计回填业务员数量: ${salesmen.filter(row => !row.branch_id).length}`)
+  console.log(`无法映射网点的业务员数量: ${unmapped.length}`)
+  if (unmapped.length) {
+    console.table(unmapped.map(row => ({
+      userId: row.id,
+      name: row.display_name,
+      phone: row.phone,
+      salesmanType: row.salesman_type,
+      serviceRegion: row.service_region,
+      areaId: row.area_id,
+      assignedMerchantId: row.assigned_merchant_id
+    })))
+    throw new Error('业务员组织迁移预检失败：存在无法唯一映射网点的人员')
+  }
+}
+
+async function ensureSalesmanOrganizationV11() {
+  const columns = await columnNames('user_roles')
+  const [[appliedMigration]] = await db.query(
+    "SELECT version FROM schema_migrations WHERE version = '2026-07-23-unify-salesman-branch-capability-v11' LIMIT 1"
+  )
+  const needsLegacyCapabilityBackfill = !appliedMigration
+
+  if (!columns.has('can_field_service')) {
+    await db.query('ALTER TABLE user_roles ADD COLUMN can_field_service TINYINT(1) NOT NULL DEFAULT 0 AFTER salesman_type')
+  }
+  if (!(await constraintExists('chk_user_roles_can_field_service'))) {
+    await db.query('ALTER TABLE user_roles ADD CONSTRAINT chk_user_roles_can_field_service CHECK (can_field_service IN (0, 1))')
+  }
+  if (!(await indexExists('user_roles', 'idx_user_roles_salesman_branch_capability'))) {
+    await db.query('CREATE INDEX idx_user_roles_salesman_branch_capability ON user_roles (role_code, branch_id, can_field_service, user_id)')
+  }
+
+  await db.query(`INSERT INTO branches
+    (merchant_id, name, contact_name, contact_phone, status, created_at, updated_at)
+    SELECT m.id, m.name, m.contact_name, m.contact_phone, m.status, m.created_at, m.updated_at
+      FROM merchants m
+     WHERE NOT EXISTS (SELECT 1 FROM branches b WHERE b.merchant_id = m.id)`)
+  await db.query(`UPDATE user_roles r
+    JOIN branches b ON b.merchant_id = r.assigned_merchant_id AND b.status = 'ACTIVE'
+    JOIN merchants m ON m.id = r.assigned_merchant_id AND b.name = m.name
+       SET r.branch_id = b.id
+     WHERE r.role_code = 'salesman' AND r.branch_id IS NULL`)
+  await db.query(`UPDATE user_roles r
+    JOIN (SELECT merchant_id, MIN(id) branch_id FROM branches WHERE status = 'ACTIVE'
+          GROUP BY merchant_id HAVING COUNT(*) = 1) c ON c.merchant_id = r.assigned_merchant_id
+       SET r.branch_id = c.branch_id
+     WHERE r.role_code = 'salesman' AND r.branch_id IS NULL`)
+  await db.query(`UPDATE user_roles r
+    JOIN (SELECT m.area_id, MIN(b.id) branch_id
+            FROM branches b JOIN merchants m ON m.id = b.merchant_id
+           WHERE b.status = 'ACTIVE' AND m.status = 'ACTIVE' AND m.area_id IS NOT NULL
+           GROUP BY m.area_id HAVING COUNT(*) = 1) c ON c.area_id = r.area_id
+       SET r.branch_id = c.branch_id
+     WHERE r.role_code = 'salesman' AND r.branch_id IS NULL`)
+  await db.query(`UPDATE user_roles r
+    JOIN (SELECT m.service_region, MIN(b.id) branch_id
+            FROM branches b JOIN merchants m ON m.id = b.merchant_id
+           WHERE b.status = 'ACTIVE' AND m.status = 'ACTIVE'
+             AND m.service_region IS NOT NULL AND m.service_region <> ''
+           GROUP BY m.service_region HAVING COUNT(*) = 1) c ON c.service_region = r.service_region
+       SET r.branch_id = c.branch_id
+     WHERE r.role_code = 'salesman' AND r.branch_id IS NULL`)
+  if (needsLegacyCapabilityBackfill) {
+    await db.query(`UPDATE user_roles
+       SET can_field_service = CASE WHEN salesman_type = 'HOME_VISIT' THEN 1 ELSE 0 END
+     WHERE role_code = 'salesman'`)
+  }
+
+  const [unmapped] = await db.query(`SELECT u.id, u.display_name, u.phone, r.service_region, r.area_id
+    FROM users u JOIN user_roles r ON r.user_id = u.id AND r.role_code = 'salesman'
+    LEFT JOIN branches b ON b.id = r.branch_id AND b.status = 'ACTIVE'
+   WHERE u.account_status = 'ACTIVE' AND b.id IS NULL`)
+  if (unmapped.length) {
+    console.table(unmapped)
+    throw new Error('存在无法唯一映射到有效网点的 ACTIVE 业务员')
+  }
+
+  await db.query(`UPDATE applications a
+    JOIN (SELECT merchant_id, MIN(id) branch_id FROM branches GROUP BY merchant_id HAVING COUNT(*) = 1) c
+      ON c.merchant_id = a.assigned_merchant_id
+     SET a.branch_id = c.branch_id WHERE a.branch_id IS NULL`)
+  await db.query(`UPDATE applications a
+    JOIN user_roles r ON r.user_id = COALESCE(a.current_salesman_id, a.assigned_salesman_user_id)
+                     AND r.role_code = 'salesman'
+     SET a.branch_id = r.branch_id WHERE a.branch_id IS NULL AND r.branch_id IS NOT NULL`)
+  await db.query(`UPDATE applications a
+    JOIN (SELECT m.area_id, MIN(b.id) branch_id
+            FROM branches b JOIN merchants m ON m.id = b.merchant_id
+           WHERE b.status = 'ACTIVE' AND m.status = 'ACTIVE' AND m.area_id IS NOT NULL
+           GROUP BY m.area_id HAVING COUNT(*) = 1) c ON c.area_id = a.district_area_id
+     SET a.branch_id = c.branch_id WHERE a.branch_id IS NULL`)
+  await db.query('UPDATE applications SET current_salesman_id = assigned_salesman_user_id WHERE current_salesman_id IS NULL AND assigned_salesman_user_id IS NOT NULL')
+  await db.query(`UPDATE application_tasks t JOIN applications a ON a.id = t.application_id
+     SET t.branch_id = a.branch_id WHERE t.branch_id IS NULL AND a.branch_id IS NOT NULL`)
+  await db.query(`UPDATE application_tasks t
+    JOIN user_roles r ON r.user_id = t.assignee_user_id AND r.role_code = 'salesman'
+     SET t.branch_id = r.branch_id WHERE t.branch_id IS NULL AND r.branch_id IS NOT NULL`)
+  await db.query(`UPDATE applications a JOIN application_tasks t ON t.application_id = a.id
+     SET a.branch_id = t.branch_id WHERE a.branch_id IS NULL AND t.branch_id IS NOT NULL`)
+  const [[taskCheck]] = await db.query('SELECT COUNT(*) AS count FROM application_tasks WHERE branch_id IS NULL')
+  if (Number(taskCheck.count)) throw new Error(`存在 ${taskCheck.count} 个无法确定负责网点的历史执行任务`)
+  await db.query('ALTER TABLE application_tasks MODIFY branch_id BIGINT UNSIGNED NOT NULL')
+  await db.query("INSERT INTO schema_migrations (version) VALUES ('2026-07-23-unify-salesman-branch-capability-v11') ON DUPLICATE KEY UPDATE version = VALUES(version)")
+}
+
+async function ensureLegacyTaskOwnerReconciliation() {
+  await db.query(`UPDATE applications a
+    JOIN application_tasks t ON t.application_id = a.id
+       SET a.current_salesman_id = t.assignee_user_id,
+           a.assigned_salesman_user_id = COALESCE(a.assigned_salesman_user_id, t.assignee_user_id)
+     WHERE a.current_salesman_id IS NULL AND t.assignee_user_id IS NOT NULL`)
+  await db.query(`UPDATE applications a
+    JOIN user_roles r ON r.user_id = a.current_salesman_id AND r.role_code = 'salesman'
+       SET a.branch_id = r.branch_id
+     WHERE a.current_salesman_id IS NOT NULL AND r.branch_id IS NOT NULL
+       AND NOT (a.branch_id <=> r.branch_id)`)
+  await db.query(`UPDATE application_tasks t
+    JOIN user_roles r ON r.user_id = t.assignee_user_id AND r.role_code = 'salesman'
+       SET t.branch_id = r.branch_id
+     WHERE t.assignee_user_id IS NOT NULL AND r.branch_id IS NOT NULL
+       AND NOT (t.branch_id <=> r.branch_id)`)
+  await db.query(`UPDATE application_tasks t
+    JOIN applications a ON a.id = t.application_id
+       SET t.branch_id = a.branch_id
+     WHERE t.assignee_user_id IS NULL AND a.branch_id IS NOT NULL
+       AND NOT (t.branch_id <=> a.branch_id)`)
+  await db.query("INSERT INTO schema_migrations (version) VALUES ('2026-07-23-reconcile-legacy-task-owners') ON DUPLICATE KEY UPDATE version = VALUES(version)")
+}
+
+async function ensureCanonicalTaskAssignee() {
+  await db.query(`UPDATE applications a
+    JOIN application_tasks t ON t.application_id = a.id
+    JOIN user_roles r ON r.user_id = t.assignee_user_id AND r.role_code = 'salesman'
+       SET a.current_salesman_id = t.assignee_user_id,
+           a.assigned_salesman_user_id = t.assignee_user_id,
+           a.branch_id = r.branch_id,
+           t.branch_id = r.branch_id
+     WHERE t.assignee_user_id IS NOT NULL
+       AND (
+         NOT (a.current_salesman_id <=> t.assignee_user_id)
+         OR NOT (a.assigned_salesman_user_id <=> t.assignee_user_id)
+         OR NOT (a.branch_id <=> r.branch_id)
+         OR NOT (t.branch_id <=> r.branch_id)
+       )`)
+  await db.query("INSERT INTO schema_migrations (version) VALUES ('2026-07-23-canonicalize-task-assignee') ON DUPLICATE KEY UPDATE version = VALUES(version)")
+}
+
+async function ensureCustomerServiceTaskFlow() {
+  await db.query(`CREATE TABLE IF NOT EXISTS customer_service_tasks (
+    id CHAR(36) NOT NULL PRIMARY KEY,
+    application_id CHAR(36) NOT NULL,
+    assignee_user_id BIGINT UNSIGNED NOT NULL,
+    status VARCHAR(32) NOT NULL DEFAULT 'ASSIGNED',
+    assigned_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    started_at DATETIME(3) NULL,
+    wait_dispatch_at DATETIME(3) NULL,
+    completed_at DATETIME(3) NULL,
+    due_at DATETIME(3) NULL,
+    transferred_at DATETIME(3) NULL,
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+    UNIQUE KEY uk_customer_service_tasks_application (application_id),
+    KEY idx_customer_service_tasks_assignee_status_due (assignee_user_id, status, due_at),
+    KEY idx_customer_service_tasks_status_due (status, due_at),
+    CONSTRAINT fk_customer_service_tasks_application FOREIGN KEY (application_id) REFERENCES applications(id),
+    CONSTRAINT fk_customer_service_tasks_assignee FOREIGN KEY (assignee_user_id) REFERENCES users(id),
+    CONSTRAINT chk_customer_service_tasks_status
+      CHECK (status IN ('ASSIGNED', 'PROCESSING', 'WAIT_DISPATCH', 'COMPLETED', 'TRANSFERRED', 'TIMEOUT'))
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci`)
+  await db.query(`CREATE TABLE IF NOT EXISTS customer_service_task_events (
+    id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    task_id CHAR(36) NOT NULL,
+    from_status VARCHAR(32) NULL,
+    to_status VARCHAR(32) NOT NULL,
+    action_code VARCHAR(64) NOT NULL,
+    operator_user_id BIGINT UNSIGNED NULL,
+    remark VARCHAR(500) NULL,
+    metadata JSON NULL,
+    created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    KEY idx_customer_service_task_events_task_time (task_id, created_at),
+    KEY idx_customer_service_task_events_operator_time (operator_user_id, created_at),
+    CONSTRAINT fk_customer_service_task_events_task FOREIGN KEY (task_id) REFERENCES customer_service_tasks(id),
+    CONSTRAINT fk_customer_service_task_events_operator FOREIGN KEY (operator_user_id) REFERENCES users(id)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci`)
+  await db.query("INSERT INTO schema_migrations (version) VALUES ('2026-07-23-add-customer-service-tasks') ON DUPLICATE KEY UPDATE version = VALUES(version)")
+}
+
 async function run() {
   await ensureLocalAnswerColumns()
   await ensureExpenseTierConstraint()
@@ -332,6 +732,12 @@ async function run() {
   await ensureAssignedMerchant()
   await ensureSalesmanTaskFlow()
   await ensureAdministrativeAreaDispatch()
+  await ensureBranchAssignmentModels()
+  await salesmanOrganizationPreflight()
+  await ensureSalesmanOrganizationV11()
+  await ensureLegacyTaskOwnerReconciliation()
+  await ensureCanonicalTaskAssignee()
+  await ensureCustomerServiceTaskFlow()
   console.log('Database migrations are up to date.')
   await db.end()
 }

@@ -9,6 +9,10 @@ function saveAuthenticatedSession(response) {
     userId: response.user.id,
     token: response.token,
     salesmanId: response.user.salesmanId,
+    branchId: response.user.branchId,
+    branchName: response.user.branchName,
+    canFieldService: response.user.canFieldService,
+    // Legacy response compatibility only.
     salesmanType: response.user.salesmanType,
     authenticatedAt: new Date().toISOString()
   })

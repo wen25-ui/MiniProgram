@@ -60,25 +60,50 @@ CREATE TABLE IF NOT EXISTS merchants (
   CONSTRAINT chk_merchants_status CHECK (status IN ('ACTIVE', 'DISABLED'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+CREATE TABLE IF NOT EXISTS branches (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  merchant_id BIGINT UNSIGNED NOT NULL,
+  name VARCHAR(120) NOT NULL,
+  address VARCHAR(500) NULL,
+  contact_name VARCHAR(80) NULL,
+  contact_phone VARCHAR(20) NULL,
+  manager_id BIGINT UNSIGNED NULL,
+  status VARCHAR(24) NOT NULL DEFAULT 'ACTIVE',
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uk_branches_merchant_name (merchant_id, name),
+  KEY idx_branches_merchant_status (merchant_id, status),
+  KEY idx_branches_manager (manager_id),
+  CONSTRAINT fk_branches_merchant FOREIGN KEY (merchant_id) REFERENCES merchants(id),
+  CONSTRAINT fk_branches_manager FOREIGN KEY (manager_id) REFERENCES users(id),
+  CONSTRAINT chk_branches_status CHECK (status IN ('ACTIVE', 'DISABLED'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS user_roles (
   user_id BIGINT UNSIGNED NOT NULL,
   role_code VARCHAR(32) NOT NULL,
   merchant_id BIGINT UNSIGNED NULL,
   assigned_merchant_id BIGINT UNSIGNED NULL,
+  branch_id BIGINT UNSIGNED NULL,
   salesman_code VARCHAR(64) NULL,
+  -- legacy only; new organization and authorization logic must not depend on salesman_type
   salesman_type VARCHAR(32) NULL,
+  can_field_service TINYINT(1) NOT NULL DEFAULT 0,
   service_region VARCHAR(120) NULL,
   area_id BIGINT UNSIGNED NULL,
   assigned_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   PRIMARY KEY (user_id, role_code),
   KEY idx_user_roles_merchant (merchant_id),
   KEY idx_user_roles_assigned_merchant (assigned_merchant_id),
+  KEY idx_user_roles_salesman_branch_capability (role_code, branch_id, can_field_service, user_id),
   KEY idx_user_roles_salesman_area (role_code, salesman_type, area_id),
   CONSTRAINT fk_user_roles_user FOREIGN KEY (user_id) REFERENCES users(id),
   CONSTRAINT fk_user_roles_merchant FOREIGN KEY (merchant_id) REFERENCES merchants(id),
   CONSTRAINT fk_user_roles_assigned_merchant FOREIGN KEY (assigned_merchant_id) REFERENCES merchants(id),
+  CONSTRAINT fk_user_roles_branch FOREIGN KEY (branch_id) REFERENCES branches(id),
   CONSTRAINT fk_user_roles_area FOREIGN KEY (area_id) REFERENCES sys_area(id),
-  CONSTRAINT chk_user_roles_code CHECK (role_code IN ('client', 'merchant', 'salesman', 'customer-service', 'finance', 'boss', 'admin'))
+  CONSTRAINT chk_user_roles_code CHECK (role_code IN ('client', 'merchant', 'salesman', 'customer-service', 'finance', 'boss', 'admin')),
+  CONSTRAINT chk_user_roles_can_field_service CHECK (can_field_service IN (0, 1))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS auth_sessions (
@@ -151,6 +176,9 @@ CREATE TABLE IF NOT EXISTS applications (
   latitude DECIMAL(10,7) NULL,
   longitude DECIMAL(10,7) NULL,
   assigned_merchant_id BIGINT UNSIGNED NULL,
+  branch_id BIGINT UNSIGNED NULL,
+  current_salesman_id BIGINT UNSIGNED NULL,
+  assign_type VARCHAR(32) NULL,
   assigned_salesman_user_id BIGINT UNSIGNED NULL,
   expected_refund_amount DECIMAL(12,2) NULL,
   refund_status VARCHAR(32) NOT NULL DEFAULT 'NOT_RECORDED',
@@ -160,12 +188,16 @@ CREATE TABLE IF NOT EXISTS applications (
   KEY idx_applications_client_status (client_user_id, status, updated_at),
   KEY idx_applications_merchant_status (merchant_id, status, updated_at),
   KEY idx_applications_assigned_merchant (assigned_merchant_id),
+  KEY idx_applications_branch_status (branch_id, status, updated_at),
+  KEY idx_applications_current_salesman_status (current_salesman_id, status, updated_at),
   KEY idx_applications_salesman_status (assigned_salesman_user_id, status, appointment_time),
   KEY idx_applications_status_created (status, created_at),
   KEY idx_applications_district_status (district_area_id, status),
   CONSTRAINT fk_applications_client FOREIGN KEY (client_user_id) REFERENCES users(id),
   CONSTRAINT fk_applications_merchant FOREIGN KEY (merchant_id) REFERENCES merchants(id),
   CONSTRAINT fk_applications_assigned_merchant FOREIGN KEY (assigned_merchant_id) REFERENCES merchants(id),
+  CONSTRAINT fk_applications_branch FOREIGN KEY (branch_id) REFERENCES branches(id),
+  CONSTRAINT fk_applications_current_salesman FOREIGN KEY (current_salesman_id) REFERENCES users(id),
   CONSTRAINT fk_applications_invite FOREIGN KEY (merchant_invite_id) REFERENCES merchant_invites(id),
   CONSTRAINT fk_applications_salesman FOREIGN KEY (assigned_salesman_user_id) REFERENCES users(id),
   CONSTRAINT fk_applications_verifier FOREIGN KEY (verified_by_user_id) REFERENCES users(id),
@@ -175,10 +207,49 @@ CREATE TABLE IF NOT EXISTS applications (
   CONSTRAINT chk_applications_expense_tier CHECK (expense_tier IS NULL OR expense_tier IN ('UNDER_79', 'FROM_79', 'FROM_150', 'FROM_250', 'FROM_400')),
   CONSTRAINT chk_applications_status CHECK (status IN ('DEMAND_SUBMITTED', 'APPLICATION_SUBMITTED', 'PRE_SCREEN_REJECTED', 'PENDING', 'CONTACTING', 'VERIFYING', 'VERIFIED', 'INVALID_INFO', 'CORRECTING', 'CONFIRMED', 'CANCELLED', 'DISPATCHING', 'ASSIGNED', 'PROCESSING', 'COMPLETED', 'PENDING_REVIEW', 'REVIEW_REJECTED', 'PENDING_CONTACT', 'CONTACT_FAILED', 'CLIENT_DECLINED', 'PENDING_SERVICE_MODE', 'PENDING_APPOINTMENT', 'PENDING_DISPATCH', 'PENDING_SERVICE', 'IN_SERVICE', 'PENDING_STORE_SERVICE', 'IN_STORE_SERVICE', 'SERVICE_FAILED', 'PENDING_VERIFICATION', 'VERIFICATION_RETURNED', 'SERVICE_COMPLETED', 'WITHDRAWN', 'CLOSED')),
   CONSTRAINT chk_applications_service_mode CHECK (service_mode IS NULL OR service_mode IN ('HOME_SERVICE', 'STORE_SERVICE')),
+  CONSTRAINT chk_applications_assign_type CHECK (assign_type IS NULL OR assign_type IN ('BRANCH_ASSIGN', 'SALESMAN_GRAB', 'TRANSFER')),
   CONSTRAINT chk_applications_verify_result CHECK (verify_result IS NULL OR verify_result IN ('VERIFIED', 'INVALID_INFO')),
   CONSTRAINT chk_applications_customer_intention CHECK (customer_intention IS NULL OR customer_intention IN ('WILLING', 'UNWILLING')),
   CONSTRAINT chk_applications_contact_result CHECK (contact_result IS NULL OR contact_result IN ('CONTACTED', 'UNREACHABLE', 'CLIENT_DECLINED')),
   CONSTRAINT chk_applications_refund_status CHECK (refund_status IN ('NOT_RECORDED', 'RECORDED', 'PENDING_CONFIRMATION', 'REFUND_POSTED', 'CORRECTED', 'VOIDED'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS customer_service_tasks (
+  id CHAR(36) NOT NULL PRIMARY KEY,
+  application_id CHAR(36) NOT NULL,
+  assignee_user_id BIGINT UNSIGNED NOT NULL,
+  status VARCHAR(32) NOT NULL DEFAULT 'ASSIGNED',
+  assigned_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  started_at DATETIME(3) NULL,
+  wait_dispatch_at DATETIME(3) NULL,
+  completed_at DATETIME(3) NULL,
+  due_at DATETIME(3) NULL,
+  transferred_at DATETIME(3) NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uk_customer_service_tasks_application (application_id),
+  KEY idx_customer_service_tasks_assignee_status_due (assignee_user_id, status, due_at),
+  KEY idx_customer_service_tasks_status_due (status, due_at),
+  CONSTRAINT fk_customer_service_tasks_application FOREIGN KEY (application_id) REFERENCES applications(id),
+  CONSTRAINT fk_customer_service_tasks_assignee FOREIGN KEY (assignee_user_id) REFERENCES users(id),
+  CONSTRAINT chk_customer_service_tasks_status
+    CHECK (status IN ('ASSIGNED', 'PROCESSING', 'WAIT_DISPATCH', 'COMPLETED', 'TRANSFERRED', 'TIMEOUT'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS customer_service_task_events (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  task_id CHAR(36) NOT NULL,
+  from_status VARCHAR(32) NULL,
+  to_status VARCHAR(32) NOT NULL,
+  action_code VARCHAR(64) NOT NULL,
+  operator_user_id BIGINT UNSIGNED NULL,
+  remark VARCHAR(500) NULL,
+  metadata JSON NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  KEY idx_customer_service_task_events_task_time (task_id, created_at),
+  KEY idx_customer_service_task_events_operator_time (operator_user_id, created_at),
+  CONSTRAINT fk_customer_service_task_events_task FOREIGN KEY (task_id) REFERENCES customer_service_tasks(id),
+  CONSTRAINT fk_customer_service_task_events_operator FOREIGN KEY (operator_user_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS application_status_history (
@@ -248,6 +319,8 @@ CREATE TABLE IF NOT EXISTS application_tasks (
   service_type VARCHAR(32) NOT NULL,
   assignee_user_id BIGINT UNSIGNED NULL,
   store_id BIGINT UNSIGNED NULL,
+  branch_id BIGINT UNSIGNED NOT NULL,
+  assign_type VARCHAR(32) NULL,
   customer_id BIGINT UNSIGNED NOT NULL,
   customer_name VARCHAR(80) NULL,
   customer_phone VARCHAR(20) NOT NULL,
@@ -269,12 +342,61 @@ CREATE TABLE IF NOT EXISTS application_tasks (
   UNIQUE KEY uk_application_tasks_application (application_id),
   KEY idx_application_tasks_assignee_status (assignee_user_id, status, appointment_time),
   KEY idx_application_tasks_store_status (store_id, status, appointment_time),
+  KEY idx_application_tasks_branch_pool (branch_id, assignee_user_id, service_type, status, updated_at),
   CONSTRAINT fk_application_tasks_application FOREIGN KEY (application_id) REFERENCES applications(id),
   CONSTRAINT fk_application_tasks_assignee FOREIGN KEY (assignee_user_id) REFERENCES users(id),
   CONSTRAINT fk_application_tasks_store FOREIGN KEY (store_id) REFERENCES merchants(id),
+  CONSTRAINT fk_application_tasks_branch FOREIGN KEY (branch_id) REFERENCES branches(id),
   CONSTRAINT fk_application_tasks_customer FOREIGN KEY (customer_id) REFERENCES users(id),
   CONSTRAINT chk_application_tasks_service_type CHECK (service_type IN ('HOME_SERVICE', 'STORE_SERVICE')),
+  CONSTRAINT chk_application_tasks_assign_type CHECK (assign_type IS NULL OR assign_type IN ('BRANCH_ASSIGN', 'SALESMAN_GRAB', 'TRANSFER')),
   CONSTRAINT chk_application_tasks_status CHECK (status IN ('PENDING_ACCEPT', 'ACCEPTED', 'WAITING_CONTACT', 'CONTACT_FAILED', 'CONTACTED', 'WAITING_TIME_CONFIRMATION', 'TIME_CONFIRMED', 'WAITING_HOME_SERVICE', 'WAITING_CUSTOMER_ARRIVAL', 'WAITING_START_CONFIRMATION', 'PROCESSING', 'PROCESSING_FAILED', 'WAITING_RESULT_UPLOAD', 'PENDING_VERIFICATION', 'COMPLETED', 'CANCELLED', 'ABNORMAL_CLOSED'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS order_assignments (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  order_id CHAR(36) NOT NULL,
+  branch_id BIGINT UNSIGNED NULL,
+  salesman_id BIGINT UNSIGNED NULL,
+  assign_type VARCHAR(32) NOT NULL,
+  operator_id BIGINT UNSIGNED NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  KEY idx_order_assignments_order (order_id, created_at),
+  KEY idx_order_assignments_branch (branch_id, created_at),
+  KEY idx_order_assignments_salesman (salesman_id, created_at),
+  CONSTRAINT fk_order_assignments_order FOREIGN KEY (order_id) REFERENCES applications(id),
+  CONSTRAINT fk_order_assignments_branch FOREIGN KEY (branch_id) REFERENCES branches(id),
+  CONSTRAINT fk_order_assignments_salesman FOREIGN KEY (salesman_id) REFERENCES users(id),
+  CONSTRAINT fk_order_assignments_operator FOREIGN KEY (operator_id) REFERENCES users(id),
+  CONSTRAINT chk_order_assignments_type CHECK (assign_type IN ('BRANCH_ASSIGN', 'SALESMAN_GRAB', 'TRANSFER'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS order_transfer_logs (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  order_id CHAR(36) NOT NULL,
+  from_salesman_id BIGINT UNSIGNED NOT NULL,
+  to_salesman_id BIGINT UNSIGNED NOT NULL,
+  reason VARCHAR(500) NOT NULL,
+  status VARCHAR(24) NOT NULL DEFAULT 'PENDING',
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  KEY idx_order_transfer_logs_order (order_id, created_at),
+  KEY idx_order_transfer_logs_receiver (to_salesman_id, status, created_at),
+  CONSTRAINT fk_order_transfer_logs_order FOREIGN KEY (order_id) REFERENCES applications(id),
+  CONSTRAINT fk_order_transfer_logs_from FOREIGN KEY (from_salesman_id) REFERENCES users(id),
+  CONSTRAINT fk_order_transfer_logs_to FOREIGN KEY (to_salesman_id) REFERENCES users(id),
+  CONSTRAINT chk_order_transfer_logs_status CHECK (status IN ('PENDING', 'ACCEPTED', 'REJECTED'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS order_grab_records (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  order_id CHAR(36) NOT NULL,
+  salesman_id BIGINT UNSIGNED NOT NULL,
+  grab_time DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  result VARCHAR(32) NOT NULL,
+  KEY idx_order_grab_records_order (order_id, grab_time),
+  KEY idx_order_grab_records_salesman (salesman_id, grab_time),
+  CONSTRAINT fk_order_grab_records_order FOREIGN KEY (order_id) REFERENCES applications(id),
+  CONSTRAINT fk_order_grab_records_salesman FOREIGN KEY (salesman_id) REFERENCES users(id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
 CREATE TABLE IF NOT EXISTS application_task_status_history (

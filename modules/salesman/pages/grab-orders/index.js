@@ -12,13 +12,17 @@ Page({
   refresh() {
     this.setData({ loading: true, message: '' })
     getBranchPendingOrders().then(rows => {
-      const orders = rows.map(item => Object.assign({}, item, {
-        id: item.orderId || item.id,
-        customerName: item.customerName || '客户',
-        businessType: item.businessType || item.projectName || item.serviceType || '业务返现办理',
-        publishedAt: item.publishedAt || item.createdAt || item.updatedAt || '未记录',
-        expectedIncome: item.expectedIncome === undefined ? item.expectedCommission : item.expectedIncome
-      }))
+      const orders = rows.map(item => {
+        const serviceType = item.serviceType || item.businessType
+        return Object.assign({}, item, {
+          id: item.orderId || item.id,
+          customerName: item.customerName || '客户',
+          serviceType,
+          businessType: serviceType === 'HOME_SERVICE' ? '外派办理任务' : '到店办理任务',
+          publishedAt: item.publishedAt || item.createdAt || item.updatedAt || '未记录',
+          expectedIncome: item.expectedIncome === undefined ? item.expectedCommission : item.expectedIncome
+        })
+      })
       this.setData({ orders, loading: false, grabbingId: '' })
     }).catch(error => this.setData({ loading: false, grabbingId: '', message: error.message }))
   },

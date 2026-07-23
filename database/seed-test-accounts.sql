@@ -22,15 +22,23 @@ SET @merchant_2 := (SELECT id FROM merchants WHERE name = '测试商家二' ORDE
 SET @merchant_3 := (SELECT id FROM merchants WHERE name = '测试商家三' ORDER BY id LIMIT 1);
 SET @merchant_4 := (SELECT id FROM merchants WHERE name = '测试商家四' ORDER BY id LIMIT 1);
 
+INSERT INTO branches (merchant_id, name, contact_name, contact_phone, status)
+SELECT m.id, m.name, m.contact_name, m.contact_phone, m.status
+  FROM merchants m
+ WHERE m.id IN (@merchant_1, @merchant_2, @merchant_3, @merchant_4)
+   AND NOT EXISTS (SELECT 1 FROM branches b WHERE b.merchant_id = m.id);
+SET @branch_1 := (SELECT id FROM branches WHERE merchant_id = @merchant_1 ORDER BY id LIMIT 1);
+SET @branch_3 := (SELECT id FROM branches WHERE merchant_id = @merchant_3 ORDER BY id LIMIT 1);
+
 INSERT INTO users (phone, password_hash, display_name, account_status, phone_verified_at) VALUES
   ('13610000001', SHA2('1234', 256), '测试商家一', 'ACTIVE', NOW(3)),
   ('13610000002', SHA2('1234', 256), '测试商家二', 'ACTIVE', NOW(3)),
   ('13610000003', SHA2('1234', 256), '测试商家三', 'ACTIVE', NOW(3)),
   ('13610000004', SHA2('1234', 256), '测试商家四', 'ACTIVE', NOW(3)),
-  ('13810000001', SHA2('1234', 256), '外派业务员一', 'ACTIVE', NOW(3)),
-  ('13810000002', SHA2('1234', 256), '外派业务员二', 'ACTIVE', NOW(3)),
-  ('13810000003', SHA2('1234', 256), '网点业务员一', 'ACTIVE', NOW(3)),
-  ('13810000004', SHA2('1234', 256), '网点业务员二', 'ACTIVE', NOW(3)),
+  ('13810000001', SHA2('1234', 256), '测试业务员A1', 'ACTIVE', NOW(3)),
+  ('13810000002', SHA2('1234', 256), '测试业务员A2', 'ACTIVE', NOW(3)),
+  ('13810000003', SHA2('1234', 256), '测试业务员A3', 'ACTIVE', NOW(3)),
+  ('13810000004', SHA2('1234', 256), '测试业务员B1', 'ACTIVE', NOW(3)),
   ('13710000001', SHA2('1234', 256), '测试客服一', 'ACTIVE', NOW(3)),
   ('13710000002', SHA2('1234', 256), '测试客服二', 'ACTIVE', NOW(3)),
   ('13710000003', SHA2('1234', 256), '测试客服三', 'ACTIVE', NOW(3)),
@@ -81,11 +89,13 @@ INSERT INTO user_roles (user_id, role_code, merchant_id) VALUES
   ((SELECT id FROM users WHERE phone = '13610000003'), 'merchant', @merchant_3),
   ((SELECT id FROM users WHERE phone = '13610000004'), 'merchant', @merchant_4);
 
-INSERT INTO user_roles (user_id, role_code, salesman_code, salesman_type, service_region, assigned_merchant_id) VALUES
-  ((SELECT id FROM users WHERE phone = '13810000001'), 'salesman', 'S-TEST-001', 'HOME_VISIT', '滨湖区', NULL),
-  ((SELECT id FROM users WHERE phone = '13810000002'), 'salesman', 'S-TEST-002', 'HOME_VISIT', '新吴区', NULL),
-  ((SELECT id FROM users WHERE phone = '13810000003'), 'salesman', 'S-TEST-003', 'BRANCH', NULL, @merchant_1),
-  ((SELECT id FROM users WHERE phone = '13810000004'), 'salesman', 'S-TEST-004', 'BRANCH', NULL, @merchant_3);
+INSERT INTO user_roles
+  (user_id, role_code, salesman_code, branch_id, can_field_service, service_region, assigned_merchant_id)
+VALUES
+  ((SELECT id FROM users WHERE phone = '13810000001'), 'salesman', 'S-TEST-001', @branch_1, 1, '滨湖区', @merchant_1),
+  ((SELECT id FROM users WHERE phone = '13810000002'), 'salesman', 'S-TEST-002', @branch_1, 1, '滨湖区', @merchant_1),
+  ((SELECT id FROM users WHERE phone = '13810000003'), 'salesman', 'S-TEST-003', @branch_1, 0, '滨湖区', @merchant_1),
+  ((SELECT id FROM users WHERE phone = '13810000004'), 'salesman', 'S-TEST-004', @branch_3, 1, '新吴区', @merchant_3);
 
 INSERT INTO user_roles (user_id, role_code) VALUES
   ((SELECT id FROM users WHERE phone = '13710000001'), 'customer-service'),

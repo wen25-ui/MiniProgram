@@ -1,11 +1,9 @@
 const { getSession } = require('../../core/auth/session')
 const { request } = require('../../services/api-client')
 
-// TODO: 后端完成客服任务模型后开启 customerTasks。
-// TODO: 数据库应用网点组织 migration，并确认 follow-ups 查询可用后开启 followUps。
 const BACKEND_CAPABILITIES = {
-  customerTasks: false,
-  followUps: false
+  customerTasks: true,
+  followUps: true
 }
 
 function unavailable(message) {

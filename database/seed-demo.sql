@@ -9,6 +9,15 @@ UPDATE merchants SET service_region = '滨湖区' WHERE id = @merchant_id;
 INSERT INTO merchants (name, contact_name, contact_phone, service_region)
 SELECT '异地测试网点', '异地店长', '13600000002', '新吴区'
 WHERE NOT EXISTS (SELECT 1 FROM merchants WHERE name = '异地测试网点');
+SET @merchant_2_id := (SELECT id FROM merchants WHERE name = '异地测试网点' ORDER BY id LIMIT 1);
+
+INSERT INTO branches (merchant_id, name, contact_name, contact_phone, status)
+SELECT m.id, m.name, m.contact_name, m.contact_phone, m.status
+FROM merchants m
+WHERE m.id IN (@merchant_id, @merchant_2_id)
+  AND NOT EXISTS (SELECT 1 FROM branches b WHERE b.merchant_id = m.id);
+SET @branch_a_id := (SELECT id FROM branches WHERE merchant_id = @merchant_id ORDER BY id LIMIT 1);
+SET @branch_b_id := (SELECT id FROM branches WHERE merchant_id = @merchant_2_id ORDER BY id LIMIT 1);
 
 INSERT INTO users (phone, display_name, phone_verified_at) VALUES
   ('13600000001', '李店长', NOW(3)),
@@ -78,10 +87,16 @@ INSERT INTO user_roles (user_id, role_code, merchant_id, salesman_code) VALUES
   ,(@client_store_id, 'client', NULL, NULL)
 ON DUPLICATE KEY UPDATE merchant_id = VALUES(merchant_id), salesman_code = VALUES(salesman_code);
 
-UPDATE user_roles SET salesman_type = 'HOME_VISIT', service_region = '滨湖区'
-WHERE user_id IN (@salesman_user_id, @salesman_user_2_id, @salesman_user_3_id, @salesman_user_4_id) AND role_code = 'salesman';
-UPDATE user_roles SET salesman_type = 'HOME_VISIT', service_region = '新吴区'
-WHERE user_id IN (@salesman_user_5_id, @salesman_user_6_id) AND role_code = 'salesman';
+UPDATE user_roles
+SET branch_id = @branch_a_id, assigned_merchant_id = @merchant_id,
+    can_field_service = CASE WHEN user_id IN (@salesman_user_id, @salesman_user_2_id) THEN 1 ELSE 0 END,
+    service_region = '滨湖区'
+WHERE user_id IN (@salesman_user_id, @salesman_user_2_id, @salesman_user_3_id) AND role_code = 'salesman';
+UPDATE user_roles
+SET branch_id = @branch_b_id, assigned_merchant_id = @merchant_2_id,
+    can_field_service = CASE WHEN user_id = @salesman_user_4_id THEN 1 ELSE 0 END,
+    service_region = '新吴区'
+WHERE user_id IN (@salesman_user_4_id, @salesman_user_5_id, @salesman_user_6_id) AND role_code = 'salesman';
 
 INSERT INTO merchant_invites (merchant_id, invite_code, source_type)
 VALUES (@merchant_id, 'demo-merchant-001', 'merchant_qr')

@@ -31,6 +31,10 @@ function normalizeSession(session) {
     authenticatedAt: session.authenticatedAt || ''
   }
   if (typeof session.salesmanId === 'string' && session.salesmanId) normalized.salesmanId = session.salesmanId
+  if (Number.isInteger(Number(session.branchId)) && Number(session.branchId) > 0) normalized.branchId = Number(session.branchId)
+  if (typeof session.branchName === 'string') normalized.branchName = session.branchName
+  normalized.canFieldService = Boolean(session.canFieldService)
+  // Legacy only: retained so older cached sessions remain readable.
   if (typeof session.salesmanType === 'string' && session.salesmanType) normalized.salesmanType = session.salesmanType
   normalized.token = session.token
   if (Number.isInteger(session.userId) && session.userId > 0) normalized.userId = session.userId

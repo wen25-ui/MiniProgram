@@ -62,13 +62,17 @@ Page({
     Promise.all([getTask(this.data.id), getBranch().catch(() => null), getPendingTransfers().catch(() => null)]).then(([rawTask, branch, transfers]) => {
       const session = getSession()
       const task = taskView(rawTask)
-      const members = branch ? (branch.members || branch.teamMembers || branch.salesmen || []).filter(item => Number(item.userId || item.id) !== Number(session.userId)) : []
+      const members = branch ? (branch.members || branch.teamMembers || branch.salesmen || []).filter(item => {
+        if (Number(item.userId || item.id) === Number(session.userId)) return false
+        return task.serviceType !== 'HOME_SERVICE' || item.canFieldService
+      }) : []
       const pendingTransfer = (transfers || []).find(item => String(item.orderId || item.applicationId) === String(task.applicationId)) || null
       this.setData({
       task: Object.assign({}, task, {
         branchName: task.branchName || task.storeName || (branch && branch.name) || '未绑定网点',
         salesmanStatusText: task.salesmanStatusText || task.statusText,
-        canTransfer: !TERMINAL_STATUSES.includes(task.status) && !['PENDING_ACCEPT', 'WAIT_ASSIGN', 'TRANSFER_PENDING'].includes(task.status)
+        canTransfer: !task.summaryOnly && !TERMINAL_STATUSES.includes(task.status) &&
+          !['PENDING_ACCEPT', 'WAIT_ASSIGN', 'TRANSFER_PENDING', 'PENDING_VERIFICATION', 'AUDITING'].includes(task.status)
       }),
       loading: false,
       resultDescription: task.resultRemark || '',

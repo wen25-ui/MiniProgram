@@ -7,6 +7,7 @@ Page({
   data: {
     stats: { pending: 0, processing: 0, submitting: 0, completed: 0 },
     income: { estimated: '0.00', completed: '0.00' }, branchName: '暂未绑定网点',
+    canFieldService: false,
     tasks: [], pendingTransfers: [], transferApiUnavailable: false, operatingTransferId: '',
     loading: true, message: ''
   },
@@ -35,6 +36,7 @@ Page({
           completed: money(tasks.filter(item => item.salesmanStatus === 'FINISHED'), ['commissionAmount', 'completedCommission'])
         },
         branchName: branch && branch.name ? branch.name : '暂未绑定网点',
+        canFieldService: Boolean(branch && branch.canFieldService),
         tasks: tasks.slice(0, 4), pendingTransfers: transfers || [],
         transferApiUnavailable: transfers === null, loading: false
       })

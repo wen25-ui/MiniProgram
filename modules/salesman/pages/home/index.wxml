@@ -1,5 +1,5 @@
 <view class="page">
-  <view class="hero"><view><text class="eyebrow">业务员工作台</text><text class="hero-title">我的业务任务</text><text class="hero-desc">所属网点：{{branchName}}</text></view><view class="hero-icon">办</view></view>
+  <view class="hero"><view><text class="eyebrow">业务员工作台</text><text class="hero-title">我的业务任务</text><text class="hero-desc">所属网点：{{branchName}}</text><text class="hero-desc">外派能力：{{canFieldService?'已开通':'未开通'}}</text></view><view class="hero-icon">办</view></view>
   <text wx:if="{{message}}" class="message">{{message}}</text>
   <view class="stats"><view><text class="value">{{stats.pending}}</text><text>待处理</text></view><view><text class="value orange">{{stats.processing}}</text><text>办理中</text></view><view><text class="value green">{{stats.submitting}}</text><text>待提交</text></view><view><text class="value done">{{stats.completed}}</text><text>已完成</text></view></view>
   <view class="income"><text class="card-title">收益概览</text><view><text>预计佣金</text><text>¥ {{income.estimated}}</text></view><view><text>已完成佣金</text><text>¥ {{income.completed}}</text></view></view>

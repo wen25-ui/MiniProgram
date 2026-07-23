@@ -9,7 +9,10 @@ const TABS = [
 ]
 
 function emptyForm() {
-  return { id: '', displayName: '', contactName: '', phone: '', salesmanCode: '', salesmanType: 'HOME_VISIT', serviceRegion: '', assignedMerchantId: '', password: '', accountStatus: 'ACTIVE' }
+  return {
+    id: '', displayName: '', contactName: '', phone: '', salesmanCode: '',
+    branchId: '', canFieldService: false, serviceRegion: '', password: '', accountStatus: 'ACTIVE'
+  }
 }
 
 Page({
@@ -33,30 +36,42 @@ Page({
   editAccount(event) {
     const item = this.data.accounts.find(entry => String(entry.id) === String(event.currentTarget.dataset.id))
     if (!item) return
-    const outletIndex = Math.max(0, this.data.outlets.findIndex(outlet => String(outlet.id) === String(item.assignedMerchantId)))
-    this.setData({ showForm: true, editing: true, outletIndex, selectedOutletName: item.assignedMerchantName || '', form: { id: item.id, displayName: item.merchantName || item.displayName || '', contactName: item.contactName || '', phone: item.phone || '', salesmanCode: item.salesmanCode || '', salesmanType: item.salesmanType || 'HOME_VISIT', serviceRegion: item.serviceRegion || '', assignedMerchantId: item.assignedMerchantId || '', password: '', accountStatus: item.accountStatus || 'ACTIVE' }, message: '' })
+    const outletIndex = Math.max(0, this.data.outlets.findIndex(outlet => String(outlet.id) === String(item.branchId)))
+    this.setData({
+      showForm: true,
+      editing: true,
+      outletIndex,
+      selectedOutletName: item.branchName || '',
+      form: {
+        id: item.id,
+        displayName: item.merchantName || item.displayName || '',
+        contactName: item.contactName || '',
+        phone: item.phone || '',
+        salesmanCode: item.salesmanCode || '',
+        branchId: item.branchId || '',
+        canFieldService: Boolean(item.canFieldService),
+        serviceRegion: item.serviceRegion || '',
+        password: '',
+        accountStatus: item.accountStatus || 'ACTIVE'
+      },
+      message: ''
+    })
   },
   input(event) { this.setData({ [`form.${event.currentTarget.dataset.field}`]: event.detail.value }) },
   changeStatus(event) { this.setData({ 'form.accountStatus': event.detail.value ? 'ACTIVE' : 'DISABLED' }) },
-  changeSalesmanType(event) {
-    const salesmanType = event.detail.value
-    const firstOutlet = this.data.outlets[0]
-    this.setData({
-      'form.salesmanType': salesmanType,
-      'form.assignedMerchantId': salesmanType === 'BRANCH' ? (this.data.form.assignedMerchantId || firstOutlet && firstOutlet.id || '') : '',
-      selectedOutletName: salesmanType === 'BRANCH' ? (this.data.selectedOutletName || firstOutlet && firstOutlet.name || '') : '',
-      outletIndex: salesmanType === 'BRANCH' ? this.data.outletIndex : 0
-    })
-  },
+  changeFieldCapability(event) { this.setData({ 'form.canFieldService': Boolean(event.detail.value) }) },
   changeOutlet(event) {
     const outletIndex = Number(event.detail.value)
     const outlet = this.data.outlets[outletIndex]
-    this.setData({ outletIndex, selectedOutletName: outlet ? outlet.name : '', 'form.assignedMerchantId': outlet ? outlet.id : '' })
+    this.setData({ outletIndex, selectedOutletName: outlet ? outlet.name : '', 'form.branchId': outlet ? outlet.id : '' })
   },
   cancelForm() { this.setData({ showForm: false, form: emptyForm(), message: '' }) },
   save() {
     if (this.data.saving) return
     const form = this.data.form
+    if (this.data.role === 'salesman' && !form.branchId) {
+      return wx.showToast({ title: '请选择所属网点', icon: 'none' })
+    }
     this.setData({ saving: true, message: '' })
     const task = this.data.editing ? updateAccount(this.data.role, form.id, form) : createAccount(this.data.role, form)
     task.then(() => {

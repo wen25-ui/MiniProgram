@@ -4,6 +4,12 @@
   "version": "0.1.0",
   "scripts": {
     "migrate": "node src/migrate.js",
+    "backfill:customer-service-tasks": "node scripts/backfill-customer-service-tasks.js",
+    "db:test:plan": "node scripts/rebuild-test-data.js --dry-run",
+    "db:test:reset": "node scripts/reset-test-data.js",
+    "db:test:seed": "node scripts/seed-test-data.js",
+    "db:test:rebuild": "node scripts/rebuild-test-data.js",
+    "db:verify:salesman-organization": "node scripts/verify-salesman-organization.js",
     "test": "node --test test/*.test.js",
     "import:phone": "node scripts/import-phone-location.js",
     "start": "node src/index.js",

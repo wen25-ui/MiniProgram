@@ -7,8 +7,8 @@ function apiRequest(path, method = 'GET', data) {
   return request(path, { method, data, session })
 }
 
-function getTasks() {
-  return apiRequest('/v1/salesman/tasks').then(response => response.tasks || [])
+function getTasks(category = 'mine') {
+  return apiRequest(`/v1/salesman/tasks?category=${encodeURIComponent(category)}`).then(response => response.tasks || [])
 }
 
 function getTask(taskId) {
@@ -20,7 +20,7 @@ function getBranch() {
 }
 
 function getBranchPendingOrders() {
-  return apiRequest('/v1/branch/orders/pending').then(response => response.orders || [])
+  return apiRequest('/v1/salesman/grab-orders').then(response => response.orders || [])
 }
 
 function grabOrder(orderId) {

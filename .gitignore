@@ -9,3 +9,6 @@ server/node_modules/
 server/.env
 server/.env.*
 !server/.env.example
+
+# Destructive test-data rebuild backups can contain personal/business data.
+database/backups/
