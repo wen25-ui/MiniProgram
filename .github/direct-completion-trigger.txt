@@ -1,3 +1,4 @@
 Trigger the temporary direct-completion patch workflow.
 Rerun after relaxing patch guards.
 Capture syntax failures in an isolated candidate branch.
+Rerun after SQL string quoting fix.
