@@ -1,0 +1,62 @@
+name: Run direct completion patcher
+
+on:
+  pull_request:
+    branches: [Git_hub]
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: Git_hub
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Extract and run patch script
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          source = Path('.github/workflows/apply-direct-completion.yml').read_text(encoding='utf-8').splitlines()
+          start = next(i for i, line in enumerate(source) if "python3 - <<'PY'" in line) + 1
+          end = next(i for i in range(start, len(source)) if source[i].strip() == 'PY')
+          lines = source[start:end]
+          indent = min(len(line) - len(line.lstrip()) for line in lines if line.strip())
+          Path('/tmp/apply-direct-completion.py').write_text('\n'.join(line[indent:] for line in lines) + '\n', encoding='utf-8')
+          PY
+          python3 /tmp/apply-direct-completion.py
+          rm -f .github/workflows/run-direct-completion-patcher.yml
+
+      - name: Validate JavaScript syntax
+        run: find . -path './server/node_modules' -prune -o -name '*.js' -print0 | xargs -0 -n1 node --check
+
+      - name: Install server dependencies
+        working-directory: server
+        run: npm ci
+
+      - name: Run server tests
+        working-directory: server
+        run: npm test
+
+      - name: Commit and push
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "remove customer-service verification flow [skip ci]"
+          git push origin HEAD:Git_hub
