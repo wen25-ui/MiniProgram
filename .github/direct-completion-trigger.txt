@@ -3,3 +3,4 @@ Rerun after relaxing patch guards.
 Capture syntax failures in an isolated candidate branch.
 Rerun after SQL string quoting fix.
 Capture unit test failures in the candidate branch.
+Rerun after updating the direct-completion state tests.
