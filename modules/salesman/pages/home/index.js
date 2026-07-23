@@ -28,7 +28,7 @@ Page({
         stats: {
           pending: tasks.filter(item => item.salesmanStatus === 'WAIT_ASSIGN').length,
           processing: tasks.filter(item => ['PROCESSING', 'VERIFYING'].includes(item.salesmanStatus)).length,
-          submitting: tasks.filter(item => ['DOCUMENT_PENDING', 'AUDITING'].includes(item.salesmanStatus)).length,
+          submitting: tasks.filter(item => item.salesmanStatus === 'DOCUMENT_PENDING').length,
           completed: tasks.filter(item => item.salesmanStatus === 'FINISHED').length
         },
         income: {

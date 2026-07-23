@@ -52,13 +52,6 @@ function saveCustomerServiceProfile(id, tags, note) {
 function assignCustomerOutlet(id, outletId) {
   return customerRequest(`/v1/customer/applications/${id}/outlet-assignment`, { outletId })
 }
-function getCustomerVerifications(category) {
-  const query = ['completed', 'rejected'].includes(category) ? `?category=${category}` : ''
-  return customerRequest(`/v1/customer/verifications${query}`).then(response => response.verifications || [])
-}
-function getCustomerVerification(id) {
-  return customerRequest(`/v1/customer/verifications/${id}`).then(response => response.verification)
-}
 function reviewApplication(id, decision, reason, serviceMode) { return customerRequest(`/v1/customer/applications/${id}/review`, { decision, reason, serviceMode }) }
 function startCustomerContact(id) { return customerRequest(`/v1/customer/applications/${id}/start-contact`, {}) }
 function recordContactResult(id, result, reason) { return customerRequest(`/v1/customer/applications/${id}/contact-result`, { result, reason }) }
@@ -74,7 +67,6 @@ function assignStoreApplication(id, outletId) { return customerRequest(`/v1/cust
 function startStoreService(id) { return customerRequest(`/v1/customer/applications/${id}/start-store`, {}) }
 function submitStoreFulfillment(id, voucherRemark) { return customerRequest(`/v1/customer/applications/${id}/submit-store`, { voucherRemark }) }
 function failStoreService(id, reason) { return customerRequest(`/v1/customer/applications/${id}/service-fail`, { reason }) }
-function verifyFulfillment(id, decision, reason, customerConfirmed) { return customerRequest(`/v1/customer/applications/${id}/verify`, { decision, reason, customerConfirmed }) }
 function getSalesmanApplications() { return salesmanRequest('/v1/salesman/applications').then(response => response.applications || []) }
 function startService(id) { return salesmanRequest(`/v1/salesman/applications/${id}/start`, {}) }
 function submitFulfillment(id, identityVerified, voucherRemark) { return salesmanRequest(`/v1/salesman/applications/${id}/submit`, { identityVerified, voucherRemark }) }
@@ -110,8 +102,6 @@ module.exports = {
   getCustomerServiceProfile,
   saveCustomerServiceProfile,
   assignCustomerOutlet,
-  getCustomerVerifications,
-  getCustomerVerification,
   reviewApplication,
   startCustomerContact,
   recordContactResult,
@@ -127,7 +117,6 @@ module.exports = {
   startStoreService,
   submitStoreFulfillment,
   failStoreService,
-  verifyFulfillment,
   getSalesmanApplications,
   startService,
   submitFulfillment,

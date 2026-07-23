@@ -28,8 +28,8 @@ function historyTime(history, operations) {
 function buildStages(task) {
   const status = task.status
   const accepted = !['PENDING_ACCEPT', 'WAIT_ASSIGN'].includes(status)
-  const processing = ['PROCESSING', 'WAITING_RESULT_UPLOAD', 'DOCUMENT_PENDING', 'PENDING_VERIFICATION', 'AUDITING', 'COMPLETED', 'FINISHED'].includes(status)
-  const submitted = ['PENDING_VERIFICATION', 'AUDITING', 'COMPLETED', 'FINISHED'].includes(status)
+  const processing = ['PROCESSING', 'WAITING_RESULT_UPLOAD', 'DOCUMENT_PENDING', 'COMPLETED', 'FINISHED'].includes(status)
+  const submitted = ['COMPLETED', 'FINISHED'].includes(status)
   const completed = ['COMPLETED', 'FINISHED'].includes(status)
   return [
     { key: 'review', title: '客服审核', active: true, time: task.dispatchedAt || '' },
@@ -72,7 +72,7 @@ Page({
         branchName: task.branchName || task.storeName || (branch && branch.name) || '未绑定网点',
         salesmanStatusText: task.salesmanStatusText || task.statusText,
         canTransfer: !task.summaryOnly && !TERMINAL_STATUSES.includes(task.status) &&
-          !['PENDING_ACCEPT', 'WAIT_ASSIGN', 'TRANSFER_PENDING', 'PENDING_VERIFICATION', 'AUDITING'].includes(task.status)
+          !['PENDING_ACCEPT', 'WAIT_ASSIGN', 'TRANSFER_PENDING'].includes(task.status)
       }),
       loading: false,
       resultDescription: task.resultRemark || '',
@@ -155,7 +155,7 @@ Page({
   finish() {
     wx.showModal({ title: '确认办理环节已完成？', content: '确认后还需要上传办理结果，任务不会立即结束。', success: result => { if (result.confirm) this.run(finishProcessing(this.data.id, this.data.processingRemark), '请上传办理结果') } })
   },
-  uploadResult() { this.run(uploadResult(this.data.id, this.data.identityVerified, this.data.resultDescription), '结果已提交') },
+  uploadResult() { this.run(uploadResult(this.data.id, this.data.identityVerified, this.data.resultDescription), '办理结果已提交，任务完成') },
   submitTransfer() {
     const member = this.data.transferMembers[this.data.transferIndex]
     const reason = this.data.transferReason.trim()

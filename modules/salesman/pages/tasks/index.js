@@ -6,7 +6,7 @@ const { taskView } = require('../../task-view')
 const FILTERS = [
   { key: '', label: '全部' }, { key: 'WAIT_ASSIGN', label: '待处理' }, { key: 'PROCESSING', label: '办理中' },
   { key: 'VERIFYING', label: '实名核验' }, { key: 'DOCUMENT_PENDING', label: '待提交' },
-  { key: 'AUDITING', label: '审核中' }, { key: 'FINISHED', label: '完成' }
+  { key: 'FINISHED', label: '完成' }
 ]
 
 Page({

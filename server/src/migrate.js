@@ -719,6 +719,14 @@ async function ensureCustomerServiceTaskFlow() {
   await db.query("INSERT INTO schema_migrations (version) VALUES ('2026-07-23-add-customer-service-tasks') ON DUPLICATE KEY UPDATE version = VALUES(version)")
 }
 
+async function ensureDirectCompletionFlow() {
+  await db.query("UPDATE application_tasks SET status = 'COMPLETED', completed_at = COALESCE(completed_at, result_uploaded_at, NOW(3)) WHERE status = 'PENDING_VERIFICATION'")
+  await db.query("UPDATE applications SET status = 'COMPLETED' WHERE status = 'PENDING_VERIFICATION'")
+  await db.query("UPDATE applications SET status = 'PROCESSING' WHERE status = 'VERIFICATION_RETURNED'")
+  await db.query("UPDATE fulfillment_submissions SET verification_status = 'APPROVED', verification_reason = COALESCE(verification_reason, '客服核销流程已取消，系统自动完成'), verified_at = COALESCE(verified_at, NOW(3)) WHERE verification_status = 'PENDING'")
+  await db.query("INSERT INTO schema_migrations (version) VALUES ('2026-07-23-direct-completion-without-verification') ON DUPLICATE KEY UPDATE version = VALUES(version)")
+}
+
 async function run() {
   await ensureLocalAnswerColumns()
   await ensureExpenseTierConstraint()
@@ -738,6 +746,7 @@ async function run() {
   await ensureLegacyTaskOwnerReconciliation()
   await ensureCanonicalTaskAssignee()
   await ensureCustomerServiceTaskFlow()
+  await ensureDirectCompletionFlow()
   console.log('Database migrations are up to date.')
   await db.end()
 }
