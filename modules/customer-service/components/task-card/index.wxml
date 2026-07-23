@@ -1,0 +1,5 @@
+<view class="task-card">
+  <view class="head"><text>我的客服任务</text><text class="status">{{statusText}}</text></view>
+  <view class="grid"><view><text>当前负责人</text><text>{{taskInfo.assignee || taskInfo.assigneeName || '--'}}</text></view><view><text>分配时间</text><text>{{taskInfo.assignedAt || '--'}}</text></view><view><text>任务状态</text><text>{{statusText}}</text></view><view><text>处理耗时</text><text>{{taskInfo.duration || '--'}}</text></view></view>
+  <view wx:if="{{!taskInfo.id}}" class="empty">客服任务详情接口待接入</view>
+</view>

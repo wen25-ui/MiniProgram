@@ -1,0 +1,3 @@
+<view class="flow">
+  <review-question wx:for="{{visibleQuestions}}" wx:key="id" question="{{item}}" index="{{index}}" disabled="{{disabled}}" bind:answer="answer"/>
+</view>

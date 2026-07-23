@@ -1,16 +1,12 @@
 const { getSession, hasRole } = require('../../../../core/auth/session')
 const { ROLES } = require('../../../../core/auth/roles')
-const { getReviews } = require('../../api')
-
-const STATUS_TEXT = { WAIT_REVIEW: '待审核', WAIT_RECONTACT: '待重联' }
+const { getCustomerServiceTasks } = require('../../api')
+const { TASK_FILTERS, taskStatusText } = require('../../task-model')
 
 Page({
-  data: {
-    reviews: [], status: 'ALL', loading: true, message: '',
-    filters: [{ key: 'ALL', label: '全部' }, { key: 'WAIT_REVIEW', label: '待审核' }, { key: 'WAIT_RECONTACT', label: '待重联' }]
-  },
+  data: { tasks: [], status: 'ALL', filters: TASK_FILTERS, loading: true, tasksUnavailable: false, message: '' },
   onLoad(options) {
-    if (['WAIT_REVIEW', 'WAIT_RECONTACT'].includes(options.status)) this.setData({ status: options.status })
+    if (TASK_FILTERS.some(item => item.key === options.status)) this.setData({ status: options.status })
   },
   onShow() {
     const session = getSession()
@@ -20,18 +16,25 @@ Page({
     this.refresh()
   },
   refresh() {
-    this.setData({ loading: true, message: '' })
-    getReviews(this.data.status).then(rows => {
-      const reviews = rows.map(item => Object.assign({}, item, {
-        id: item.orderId || item.id,
+    this.setData({ loading: true, tasksUnavailable: false, message: '' })
+    getCustomerServiceTasks(this.data.status).then(rows => {
+      const tasks = rows.map(item => ({
+        id: item.id,
+        orderId: item.orderId || (item.order && item.order.id),
         customerId: item.customerId || (item.customer && item.customer.id),
         customerName: item.customerName || (item.customer && item.customer.name) || '未填写',
         maskedPhone: item.maskedPhone || (item.customer && item.customer.maskedPhone) || '',
         projectName: item.projectName || (item.order && item.order.projectName) || '业务返现办理',
-        statusText: STATUS_TEXT[item.status] || item.statusText || item.status
+        status: item.status,
+        statusText: taskStatusText(item.status),
+        orderStatus: item.orderStatus || (item.order && item.order.status) || '',
+        assignee: item.assignee || item.assigneeName || '',
+        assignedAt: item.assignedAt || '',
+        duration: item.duration || '',
+        updatedAt: item.updatedAt || item.assignedAt || ''
       }))
-      this.setData({ reviews, loading: false })
-    }).catch(error => this.setData({ loading: false, message: error.message }))
+      this.setData({ tasks, loading: false })
+    }).catch(() => this.setData({ tasks: [], loading: false, tasksUnavailable: true }))
   },
   chooseFilter(event) {
     const status = event.currentTarget.dataset.status
@@ -39,11 +42,15 @@ Page({
     this.setData({ status }, () => this.refresh())
   },
   openDetail(event) {
-    const item = this.data.reviews[Number(event.currentTarget.dataset.index)]
-    if (!item) return
-    const customerId = item.customerId ? `&customerId=${item.customerId}` : ''
-    const customerName = `&customerName=${encodeURIComponent(item.customerName || '')}`
-    const projectName = `&projectName=${encodeURIComponent(item.projectName || '')}`
-    wx.navigateTo({ url: `/modules/customer-service/pages/review-detail/index?id=${item.id}${customerId}${customerName}${projectName}` })
+    const item = this.data.tasks[Number(event.currentTarget.dataset.index)]
+    if (!item || !item.orderId) return wx.showToast({ title: '任务缺少关联订单', icon: 'none' })
+    const query = [
+      `id=${encodeURIComponent(item.orderId)}`,
+      `taskId=${encodeURIComponent(item.id || '')}`,
+      `customerId=${encodeURIComponent(item.customerId || '')}`,
+      `customerName=${encodeURIComponent(item.customerName || '')}`,
+      `projectName=${encodeURIComponent(item.projectName || '')}`
+    ].join('&')
+    wx.navigateTo({ url: `/modules/customer-service/pages/review-detail/index?${query}` })
   }
 })

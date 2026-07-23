@@ -1,12 +1,12 @@
 const { getSession, hasRole } = require('../../../../core/auth/session')
 const { ROLES } = require('../../../../core/auth/roles')
 const {
-  getReviews, getReviewQuestions, saveReviewAnswer, getApplication,
+  getReviews, getReviewQuestions, saveReviewAnswer, getApplication, getCustomerServiceTask,
   startContact, saveContactResult, getCustomerTags, addCustomerTag, deleteCustomerTag,
   getCustomerNotes, addCustomerNote, getBranchCandidates, assignBranch
 } = require('../../api')
 
-const PRESET_TAGS = ['高意向', '价格敏感', '需回访', '无效客户']
+const PRESET_TAGS = ['高意向', '价格敏感', '需要回访', '疑似无效', '重点客户']
 const CONTACTED_STATUSES = ['VERIFYING', 'VERIFIED', 'CONFIRMED', 'DISPATCHING', 'ASSIGNED', 'PROCESSING', 'COMPLETED', 'SERVICE_COMPLETED']
 const ASSIGNED_STATUSES = ['ASSIGNED', 'PROCESSING', 'COMPLETED', 'SERVICE_COMPLETED']
 
@@ -32,22 +32,18 @@ function hasAnswer(question) {
   return String(question.answer === undefined || question.answer === null ? '' : question.answer).trim() !== ''
 }
 
-function answerMatches(answer, expected) {
-  if (Array.isArray(answer)) return answer.map(String).includes(String(expected))
-  return String(answer) === String(expected)
-}
-
 Page({
   data: {
-    id: '', customerId: '', listCustomerName: '', listProjectName: '', application: null, loading: true, submitting: false, message: '',
+    id: '', taskId: '', customerId: '', listCustomerName: '', listProjectName: '', application: null,
+    taskInfo: {}, taskApiUnavailable: false, loading: true, submitting: false, message: '',
     contacted: false, contactStarted: false, contactFormVisible: false, contactReason: '',
-    questions: [], visibleQuestions: [], reviewComplete: false,
+    questions: [], reviewComplete: false,
     tags: [], presetTags: PRESET_TAGS.map(label => ({ label, selected: false, id: null })), customTag: '',
     notes: [], newNote: '', outlets: [], outletMatchText: '', selectedBranchId: '', assigned: false, canAssignBranch: false
   },
   onLoad(options) {
     this.setData({
-      id: options.id || '', customerId: options.customerId || '',
+      id: options.id || '', taskId: options.taskId || '', customerId: options.customerId || '',
       listCustomerName: decodeURIComponent(options.customerName || ''),
       listProjectName: decodeURIComponent(options.projectName || '')
     })
@@ -89,11 +85,24 @@ Page({
         canAssignBranch: ['CONFIRMED', 'DISPATCHING'].includes(application.status),
         loading: false
       }, () => {
-        this.refreshVisibleQuestions()
+        this.loadTaskInfo()
         if (customerId) this.loadPrivateData()
         if (!this.data.assigned) this.loadOutlets()
       })
     }).catch(error => this.setData({ loading: false, submitting: false, message: error.message }))
+  },
+  loadTaskInfo() {
+    if (!this.data.taskId) return this.setData({ taskInfo: {}, taskApiUnavailable: true })
+    getCustomerServiceTask(this.data.taskId).then(task => this.setData({
+      taskInfo: {
+        id: task.id,
+        assignee: task.assignee || task.assigneeName || '',
+        assignedAt: task.assignedAt || '',
+        status: task.status || '',
+        duration: task.duration || ''
+      },
+      taskApiUnavailable: false
+    })).catch(() => this.setData({ taskInfo: {}, taskApiUnavailable: true }))
   },
   resolveCustomerId() {
     if (this.data.customerId) return Promise.resolve(this.data.customerId)
@@ -101,28 +110,6 @@ Page({
       const current = rows.find(item => String(item.orderId || item.id) === String(this.data.id))
       return current && (current.customerId || (current.customer && current.customer.id))
     })
-  },
-  refreshVisibleQuestions() {
-    const questions = this.data.questions
-    if (!questions.length) return this.setData({ visibleQuestions: [], reviewComplete: true })
-    const visibleIds = new Set([questions[0].id])
-    questions.forEach((question, index) => {
-      if (index === 0) return
-      if (question.parentId) {
-        const parent = questions.find(item => String(item.id) === String(question.parentId))
-        if (parent && visibleIds.has(parent.id) && hasAnswer(parent) && answerMatches(parent.answer, question.parentAnswer)) visibleIds.add(question.id)
-      } else {
-        const previous = questions[index - 1]
-        if (visibleIds.has(previous.id) && hasAnswer(previous)) visibleIds.add(question.id)
-      }
-    })
-    const visibleQuestions = questions.filter(question => visibleIds.has(question.id)).map(question => Object.assign({}, question, {
-      answered: hasAnswer(question),
-      options: question.options.map(option => Object.assign({}, option, {
-        selected: Array.isArray(question.answer) && question.answer.includes(option.value)
-      }))
-    }))
-    this.setData({ visibleQuestions, reviewComplete: visibleQuestions.length > 0 && visibleQuestions.every(hasAnswer) })
   },
   beginContact() {
     if (this.data.submitting) return
@@ -148,12 +135,13 @@ Page({
     const questions = this.data.questions.map(question => String(question.id) === String(questionId)
       ? Object.assign({}, question, { answer, answered: hasAnswer({ answer }) })
       : question)
-    this.setData({ questions }, () => this.refreshVisibleQuestions())
+    this.setData({ questions })
     if (!hasAnswer({ answer })) return
     const storedAnswer = Array.isArray(answer) ? JSON.stringify(answer) : String(answer)
     saveReviewAnswer(this.data.id, questionId, storedAnswer)
       .catch(error => this.setData({ message: error.message }))
   },
+  onQuestionProgress(event) { this.setData({ reviewComplete: Boolean(event.detail.complete) }) },
   loadPrivateData() {
     Promise.all([getCustomerTags(this.data.customerId), getCustomerNotes(this.data.customerId)]).then(([tags, notes]) => {
       this.setData({ tags, notes, presetTags: PRESET_TAGS.map(label => {
@@ -198,11 +186,12 @@ Page({
       this.setData({ outlets, outletMatchText: matchText })
     }).catch(error => this.setData({ message: error.message }))
   },
-  chooseOutlet(event) { this.setData({ selectedBranchId: event.currentTarget.dataset.id }) },
-  assignOutlet() {
+  chooseOutlet(event) { this.setData({ selectedBranchId: event.detail.branchId }) },
+  assignOutlet(event) {
     if (!this.data.canAssignBranch) return wx.showToast({ title: '审核完成接口待后端补充', icon: 'none' })
-    if (!this.data.selectedBranchId) return wx.showToast({ title: '请选择办理网点', icon: 'none' })
-    this.run(assignBranch(this.data.id, this.data.selectedBranchId), '已指派网点', () => {
+    const branchId = event && event.detail && event.detail.branchId ? event.detail.branchId : this.data.selectedBranchId
+    if (!branchId) return wx.showToast({ title: '请选择办理网点', icon: 'none' })
+    this.run(assignBranch(this.data.id, branchId), '已指派网点', () => {
       wx.redirectTo({ url: '/modules/customer-service/pages/follow-up/index' })
     })
   },

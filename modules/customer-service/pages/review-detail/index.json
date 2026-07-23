@@ -1,6 +1,8 @@
 {
   "navigationBarTitleText": "审核派遣详情",
   "usingComponents": {
-    "review-question": "/modules/customer-service/components/review-question/index"
+    "task-card": "/modules/customer-service/components/task-card/index",
+    "question-flow": "/modules/customer-service/components/question-flow/index",
+    "branch-selector": "/modules/customer-service/components/branch-selector/index"
   }
 }

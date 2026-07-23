@@ -1,6 +1,19 @@
 const { getSession } = require('../../core/auth/session')
 const { request } = require('../../services/api-client')
 
+// TODO: 后端完成客服任务模型后开启 customerTasks。
+// TODO: 数据库应用网点组织 migration，并确认 follow-ups 查询可用后开启 followUps。
+const BACKEND_CAPABILITIES = {
+  customerTasks: false,
+  followUps: false
+}
+
+function unavailable(message) {
+  const error = new Error(message)
+  error.code = 'BACKEND_CAPABILITY_UNAVAILABLE'
+  return Promise.reject(error)
+}
+
 function apiRequest(path, method = 'GET', data) {
   const session = getSession()
   if (!session || !session.token) return Promise.reject(new Error('请先登录'))
@@ -12,7 +25,24 @@ function getReviews(status = 'ALL') {
     .then(response => response.reviews || [])
 }
 
+function getTaskStatistics() {
+  if (!BACKEND_CAPABILITIES.customerTasks) return unavailable('客服任务统计接口待接入')
+  return apiRequest('/v1/customer-service/tasks/statistics').then(response => response.statistics || response)
+}
+
+function getCustomerServiceTasks(status = 'ALL') {
+  if (!BACKEND_CAPABILITIES.customerTasks) return unavailable('客服个人任务接口待接入')
+  return apiRequest(`/v1/customer-service/tasks?status=${encodeURIComponent(status)}`)
+    .then(response => response.tasks || [])
+}
+
+function getCustomerServiceTask(taskId) {
+  if (!BACKEND_CAPABILITIES.customerTasks) return unavailable('客服任务详情接口待接入')
+  return apiRequest(`/v1/customer-service/tasks/${taskId}`).then(response => response.task)
+}
+
 function getFollowUps(status = 'ALL') {
+  if (!BACKEND_CAPABILITIES.followUps) return unavailable('项目跟进接口等待网点数据迁移完成')
   return apiRequest(`/v1/customer-service/follow-ups?status=${encodeURIComponent(status)}`)
     .then(response => response.followUps || [])
 }
@@ -74,6 +104,9 @@ function getFollowUpDetail(orderId) {
 }
 
 module.exports = {
+  getTaskStatistics,
+  getCustomerServiceTasks,
+  getCustomerServiceTask,
   getReviews,
   getFollowUps,
   getReviewQuestions,

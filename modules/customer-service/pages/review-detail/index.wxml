@@ -4,6 +4,8 @@
   <block wx:elif="{{application}}">
     <view class="header"><text class="eyebrow">审核派遣</text><text class="title">{{application.customerName}}</text><text class="desc">{{application.phone}} · {{application.statusText}}</text></view>
     <text wx:if="{{message}}" class="message">{{message}}</text>
+    <task-card task-info="{{taskInfo}}"/>
+    <view wx:if="{{taskApiUnavailable}}" class="api-tip">客服任务详情接口待接入。<!-- TODO: GET /customer-service/tasks/:id --></view>
 
     <view class="card"><text class="card-title">客户基础信息</text><view class="row"><text>客户姓名</text><text>{{application.customerName}}</text></view><view class="row"><text>手机号</text><text>{{application.phone}}</text></view><view class="row"><text>申请项目</text><text>{{application.projectName}}</text></view><view class="row"><text>提交时间</text><text>{{application.submittedAt || '未记录'}}</text></view></view>
 
@@ -11,7 +13,7 @@
 
     <block wx:if="{{contacted}}">
       <view class="question-heading"><text>动态审核问题</text><text>问题会根据上一项答案逐步展开</text></view>
-      <review-question wx:for="{{visibleQuestions}}" wx:key="id" question="{{item}}" index="{{index}}" disabled="{{submitting}}" bind:answer="onQuestionAnswer"/>
+      <question-flow questions="{{questions}}" disabled="{{submitting}}" bind:answer="onQuestionAnswer" bind:progress="onQuestionProgress"/>
       <view wx:if="{{!questions.length}}" class="card api-tip">暂无审核问题配置。<!-- TODO: 后端配置 review_questions 及 options 字段。 --></view>
 
       <block wx:if="{{reviewComplete}}">
@@ -19,7 +21,7 @@
 
         <view class="card"><text class="card-title">客服备注</text><textarea class="textarea" value="{{newNote}}" maxlength="500" placeholder="例如：客户要求下午联系，需要提前确认地址。" bindinput="onNoteInput"/><button class="secondary" loading="{{submitting}}" bindtap="submitNote">新增备注</button><view wx:if="{{notes.length}}" class="note-list"><view wx:for="{{notes}}" wx:key="id" class="note-item"><text>{{item.content}}</text><text>{{item.operatorName || '客服'}} · {{item.createdAt}}</text></view></view></view>
 
-        <view wx:if="{{!assigned}}" class="card"><text class="card-title">指派网点</text><text class="private-tip">{{outletMatchText}} · 当前版本不计算真实距离</text><view wx:for="{{outlets}}" wx:key="branchId" class="outlet {{selectedBranchId == item.branchId ? 'selected' : ''}}" data-id="{{item.branchId}}" bindtap="chooseOutlet"><view><text>{{item.name}}</text><text>{{item.addressText}}</text><text>{{item.distanceText}}</text></view><text>{{selectedBranchId == item.branchId ? '已选' : '选择'}}</text></view><view wx:if="{{!outlets.length}}" class="api-tip">暂无可用网点，请确认客户区域及网点 branchId 已由后端返回。</view><view wx:if="{{!canAssignBranch}}" class="api-tip">审核答案已填写；订单确认审核完成的接口尚未提供。<!-- TODO: 后端新增审核完成并推进至 WAIT_BRANCH/CONFIRMED 的接口。 --></view><button class="primary" disabled="{{!canAssignBranch}}" loading="{{submitting}}" bindtap="assignOutlet">确认指派网点</button></view>
+        <view wx:if="{{!assigned}}" class="card"><text class="card-title">指派网点</text><text class="private-tip">{{outletMatchText}} · 当前版本不计算真实距离</text><branch-selector branches="{{outlets}}" selected-id="{{selectedBranchId}}" loading="{{submitting}}" disabled="{{!canAssignBranch}}" bind:select="chooseOutlet" bind:confirm="assignOutlet"/><view wx:if="{{!canAssignBranch}}" class="api-tip">审核答案已填写；订单确认审核完成的接口尚未提供。<!-- TODO: 后端新增审核完成并推进至 WAIT_BRANCH/CONFIRMED 的接口。 --></view></view>
         <view wx:else class="completed-tip">已完成网点指派，订单已进入项目跟进。</view>
       </block>
     </block>

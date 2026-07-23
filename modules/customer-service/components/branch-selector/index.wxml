@@ -1,0 +1,5 @@
+<view class="selector">
+  <view wx:for="{{branches}}" wx:key="branchId" class="branch {{selectedId == item.branchId ? 'selected' : ''}}" data-id="{{item.branchId}}" bindtap="select"><view><text>{{item.name}}</text><text>{{item.addressText}}</text><text>{{item.distanceText}}</text></view><text>{{selectedId == item.branchId ? '已选' : '选择'}}</text></view>
+  <view wx:if="{{!branches.length}}" class="empty">暂无可派遣网点</view>
+  <button class="confirm" disabled="{{disabled || !selectedId}}" loading="{{loading}}" bindtap="confirm">确认派遣网点</button>
+</view>

@@ -1,5 +1,5 @@
 {
-  "navigationBarTitleText": "审核派遣",
+  "navigationBarTitleText": "我的审核任务",
   "usingComponents": {
     "role-bottom-nav": "/components/role-bottom-nav/index"
   }

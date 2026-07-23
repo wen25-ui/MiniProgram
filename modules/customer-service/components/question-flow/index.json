@@ -1,0 +1,6 @@
+{
+  "component": true,
+  "usingComponents": {
+    "review-question": "/modules/customer-service/components/review-question/index"
+  }
+}

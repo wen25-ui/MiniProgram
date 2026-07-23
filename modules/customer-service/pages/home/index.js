@@ -1,41 +1,37 @@
 const { getSession, hasRole } = require('../../../../core/auth/session')
 const { ROLES } = require('../../../../core/auth/roles')
-const { getReviews, getFollowUps } = require('../../api')
+const { getTaskStatistics } = require('../../api')
 
 Page({
   data: {
-    stats: { waitReview: 0, waitRecontact: 0, following: 0, completed: 0 },
-    recent: [], loading: true, message: ''
+    stats: { waitContact: 0, processing: 0, waitDispatch: 0, timeout: 0, todayCompleted: 0 },
+    loading: true, statisticsUnavailable: false, message: ''
   },
   onShow() {
     const session = getSession()
     if (!session || !hasRole(session, ROLES.CUSTOMER_SERVICE)) {
       return wx.reLaunch({ url: '/pages/auth/login/index' })
     }
-    this.setData({ loading: true, message: '' })
-    Promise.all([getReviews('ALL'), getFollowUps('ALL')]).then(([reviews, followUps]) => {
-      const recent = reviews.concat(followUps).map(item => Object.assign({}, item, {
-        id: item.orderId || item.id,
-        statusText: item.statusText || ({ WAIT_REVIEW: '待审核', WAIT_RECONTACT: '待重联', BRANCH_ASSIGNED: '网点待处理', SALESMAN_PROCESSING: '业务处理中', FINISHED: '已完成' }[item.status] || item.status)
-      })).sort((left, right) => String(right.updatedAt || right.submittedAt || '').localeCompare(String(left.updatedAt || left.submittedAt || ''))).slice(0, 4)
+    this.refresh()
+  },
+  refresh() {
+    this.setData({ loading: true, statisticsUnavailable: false, message: '' })
+    getTaskStatistics().then(statistics => {
       this.setData({
         stats: {
-          waitReview: reviews.filter(item => item.status === 'WAIT_REVIEW').length,
-          waitRecontact: reviews.filter(item => item.status === 'WAIT_RECONTACT').length,
-          following: followUps.filter(item => item.status !== 'FINISHED').length,
-          completed: followUps.filter(item => item.status === 'FINISHED').length
+          waitContact: Number(statistics.waitContact || statistics.assigned || 0),
+          processing: Number(statistics.processing || 0),
+          waitDispatch: Number(statistics.waitDispatch || 0),
+          timeout: Number(statistics.timeout || 0),
+          todayCompleted: Number(statistics.todayCompleted || 0)
         },
-        recent,
         loading: false
       })
-    }).catch(error => this.setData({ loading: false, message: error.message }))
+    }).catch(() => this.setData({ loading: false, statisticsUnavailable: true }))
   },
-  goReview(event) {
+  goTasks(event) {
     const status = event && event.currentTarget.dataset.status
     wx.navigateTo({ url: `/modules/customer-service/pages/review/index${status ? `?status=${status}` : ''}` })
   },
-  goFollowUp(event) {
-    const status = event && event.currentTarget.dataset.status
-    wx.navigateTo({ url: `/modules/customer-service/pages/follow-up/index${status ? `?status=${status}` : ''}` })
-  }
+  goFollowUp() { wx.navigateTo({ url: '/modules/customer-service/pages/follow-up/index' }) }
 })
