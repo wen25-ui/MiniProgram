@@ -8,6 +8,13 @@ on:
       - 'server/**'
       - 'database/**'
       - '.github/workflows/database-smoke-test.yml'
+  pull_request:
+    branches:
+      - codexuser
+    paths:
+      - 'server/**'
+      - 'database/**'
+      - '.github/workflows/database-smoke-test.yml'
   workflow_dispatch:
 
 permissions:
