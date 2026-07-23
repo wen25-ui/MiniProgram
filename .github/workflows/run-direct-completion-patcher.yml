@@ -44,7 +44,22 @@ jobs:
           rm -f .github/workflows/run-direct-completion-patcher.yml
 
       - name: Validate JavaScript syntax
-        run: find . -path './server/node_modules' -prune -o -name '*.js' -print0 | xargs -0 -n1 node --check
+        shell: bash
+        run: |
+          set +e
+          find . -path './server/node_modules' -prune -o -name '*.js' -print0 | xargs -0 -n1 node --check > /tmp/direct-completion-syntax.log 2>&1
+          status=$?
+          cat /tmp/direct-completion-syntax.log
+          if [ "$status" -ne 0 ]; then
+            cp /tmp/direct-completion-syntax.log .github/direct-completion-syntax.log
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git checkout -B agent/direct-completion-candidate
+            git add -A
+            git commit -m "debug direct completion candidate [skip ci]"
+            git push --force origin HEAD:agent/direct-completion-candidate
+            exit "$status"
+          fi
 
       - name: Install server dependencies
         working-directory: server
