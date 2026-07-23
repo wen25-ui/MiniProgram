@@ -41,6 +41,21 @@ jobs:
           Path('/tmp/apply-direct-completion.py').write_text(script, encoding='utf-8')
           PY
           python3 /tmp/apply-direct-completion.py
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('server/src/index.js')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace(
+              "connection.execute('INSERT INTO fulfillment_submissions (application_id, submitted_by_user_id, identity_verified, result_status, result_description, voucher_remark) VALUES (?, ?, 1, 'SUCCESS', ?, ?)',",
+              "connection.execute(\"INSERT INTO fulfillment_submissions (application_id, submitted_by_user_id, identity_verified, result_status, result_description, voucher_remark) VALUES (?, ?, 1, 'SUCCESS', ?, ?)\"," 
+          )
+          text = text.replace(
+              "connection.execute(\n          'INSERT INTO fulfillment_submissions (application_id, salesman_user_id, submitted_by_user_id, identity_verified, result_status, result_description, voucher_remark) VALUES (?, ?, ?, 1, 'SUCCESS', ?, ?)',",
+              "connection.execute(\n          \"INSERT INTO fulfillment_submissions (application_id, salesman_user_id, submitted_by_user_id, identity_verified, result_status, result_description, voucher_remark) VALUES (?, ?, ?, 1, 'SUCCESS', ?, ?)\"," 
+          )
+          path.write_text(text, encoding='utf-8')
+          PY
           rm -f .github/workflows/run-direct-completion-patcher.yml
 
       - name: Validate JavaScript syntax
