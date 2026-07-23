@@ -11,9 +11,8 @@ const NAV_ITEMS = {
   ],
   'customer-service': [
     { key: 'home', label: '客服工作台', icon: '服', url: '/modules/customer-service/pages/home/index' },
-    { key: 'review', label: '申请审核', icon: '审', url: '/modules/customer-service/pages/review/index' },
-    { key: 'dispatch', label: '任务派遣', icon: '派', url: '/modules/customer-service/pages/dispatch/index' },
-    { key: 'verification', label: '结果核销', icon: '核', url: '/modules/customer-service/pages/verification/index' },
+    { key: 'review', label: '审核派遣', icon: '审', url: '/modules/customer-service/pages/review/index' },
+    { key: 'follow-up', label: '项目跟进', icon: '跟', url: '/modules/customer-service/pages/follow-up/index' },
     { key: 'profile', label: '用户管理', icon: '人', url: '/pages/account/index?role=customer-service' }
   ],
   salesman: [

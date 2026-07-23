@@ -15,11 +15,11 @@
     },
     {
       "root": "modules/salesman",
-      "pages": ["pages/home/index", "pages/tasks/index", "pages/schedule/index", "pages/task-detail/index"]
+      "pages": ["pages/home/index", "pages/tasks/index", "pages/grab-orders/index", "pages/schedule/index", "pages/task-detail/index", "pages/branch/index"]
     },
     {
       "root": "modules/customer-service",
-      "pages": ["pages/home/index", "pages/review/index", "pages/review-detail/index", "pages/dispatch/index", "pages/verification/index", "pages/verification-detail/index", "pages/all-data/index", "pages/business-detail/index"]
+      "pages": ["pages/home/index", "pages/review/index", "pages/review-detail/index", "pages/follow-up/index", "pages/business-detail/index"]
     },
     {
       "root": "modules/finance",

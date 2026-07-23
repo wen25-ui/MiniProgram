@@ -1,17 +1,20 @@
 <view class="page">
-  <view class="hero"><view><text class="eyebrow">客服工作台</text><text class="hero-title">审核与履约协同</text><text class="hero-desc">处理资格复审、预约、派单和凭证核销</text></view><view class="hero-icon">服</view></view>
+  <view class="hero">
+    <view><text class="eyebrow">客服工作台</text><text class="hero-title">审核、派店与项目跟进</text><text class="hero-desc">联系客户并完善信息后，将订单指派到办理网点</text></view>
+    <view class="hero-icon">客</view>
+  </view>
   <text wx:if="{{message}}" class="message">{{message}}</text>
   <view class="stats-grid">
-    <view class="stat-card" data-filter="review" bindtap="goAllData"><view class="dot review"></view><text class="value">{{stats.review}}</text><text>待审核</text></view>
-    <view class="stat-card" data-filter="pendingDispatch" bindtap="goAllData"><view class="dot pending-dispatch"></view><text class="value">{{stats.pendingDispatch}}</text><text>待派遣</text></view>
-    <view class="stat-card" data-filter="dispatched" bindtap="goAllData"><view class="dot dispatched"></view><text class="value">{{stats.dispatched}}</text><text>已派遣</text></view>
-    <view class="stat-card" data-filter="pendingVerification" bindtap="goAllData"><view class="dot verify"></view><text class="value">{{stats.pendingVerification}}</text><text>待核销派遣</text></view>
-    <view class="stat-card" data-filter="completed" bindtap="goAllData"><view class="dot completed"></view><text class="value">{{stats.completed}}</text><text>核销完成</text></view>
-    <view class="stat-card" data-filter="all" bindtap="goAllData"><view class="dot total"></view><text class="value">{{stats.total}}</text><text>全部数据</text></view>
+    <view class="stat-card" data-status="WAIT_REVIEW" bindtap="goReview"><view class="dot review"></view><text class="value">{{stats.waitReview}}</text><text>待审核</text></view>
+    <view class="stat-card" data-status="WAIT_RECONTACT" bindtap="goReview"><view class="dot recontact"></view><text class="value">{{stats.waitRecontact}}</text><text>待重联</text></view>
+    <view class="stat-card" data-status="PROCESSING" bindtap="goFollowUp"><view class="dot following"></view><text class="value">{{stats.following}}</text><text>跟进中</text></view>
+    <view class="stat-card" data-status="FINISHED" bindtap="goFollowUp"><view class="dot completed"></view><text class="value">{{stats.completed}}</text><text>完成任务</text></view>
   </view>
-  <view style="margin-top:22rpx;display:flex;gap:16rpx"><button class="workspace-button" style="flex:1;margin:0;font-size:24rpx" bindtap="goReview">进入申请审核</button><button class="workspace-button" style="flex:1;margin:0;background:#16777f;font-size:24rpx" bindtap="goDispatch">进入任务派遣</button></view>
-  <view class="section-head"><text>最近待办</text><text data-filter="all" bindtap="goAllData">查看全部 ›</text></view>
-  <view wx:if="{{applications.length}}" class="list"><view wx:for="{{applications}}" wx:key="id" class="row"><view class="avatar">{{index+1}}</view><view class="main"><text>{{item.maskedPhone}}</text><text>{{item.id}}</text></view><text class="status">{{item.statusText}}</text></view></view>
-  <view wx:else class="empty">当前没有客服待办事项</view>
+  <view class="quick-actions"><button bindtap="goReview">审核派遣</button><button bindtap="goFollowUp">项目跟进</button></view>
+  <view class="section-head"><text>最近业务</text></view>
+  <view wx:if="{{recent.length}}" class="list">
+    <view wx:for="{{recent}}" wx:key="id" class="row"><view class="avatar">{{index + 1}}</view><view class="main"><text>{{item.customerName || item.maskedPhone || '未填写'}}</text><text>{{item.updatedAt || item.submittedAt || '未记录更新时间'}}</text></view><text class="status">{{item.statusText}}</text></view>
+  </view>
+  <view wx:else class="empty">{{loading ? '正在读取工作台…' : '当前没有客服待办事项'}}</view>
   <role-bottom-nav role="customer-service" current="home"></role-bottom-nav>
 </view>

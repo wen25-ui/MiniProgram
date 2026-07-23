@@ -1,28 +1,31 @@
 const { getSession, hasRole } = require('../../../../core/auth/session')
 const { ROLES } = require('../../../../core/auth/roles')
-const { getSalesmanTasks } = require('../../../../services/client-application-service')
+const { getTasks } = require('../../api')
+const { taskView } = require('../../task-view')
 
 const FILTERS = [
-  { key: '', label: '全部' }, { key: 'pending', label: '待接收' },
-  { key: 'contact', label: '待联系' }, { key: 'contact-failed', label: '联系失败' },
-  { key: 'waiting', label: '待办理' }
+  { key: '', label: '全部' }, { key: 'WAIT_ASSIGN', label: '待处理' }, { key: 'PROCESSING', label: '办理中' },
+  { key: 'VERIFYING', label: '实名核验' }, { key: 'DOCUMENT_PENDING', label: '待提交' },
+  { key: 'AUDITING', label: '审核中' }, { key: 'FINISHED', label: '完成' }
 ]
 
 Page({
-  data: { tasks: [], filters: FILTERS, filter: '', message: '', loading: true, session: {} },
+  data: { allTasks: [], tasks: [], filters: FILTERS, filter: '', message: '', loading: true },
   onShow() {
     const session = getSession()
     if (!session || !hasRole(session, ROLES.SALESMAN)) return wx.reLaunch({ url: '/pages/auth/login/index' })
-    this.setData({ session })
     this.refresh()
   },
   refresh() {
     this.setData({ loading: true, message: '' })
-    getSalesmanTasks(this.data.filter).then(tasks => this.setData({ tasks, loading: false }))
-      .catch(error => this.setData({ loading: false, message: error.message }))
+    getTasks().then(rows => {
+      const allTasks = rows.map(taskView)
+      this.setData({ allTasks, loading: false }, () => this.applyFilter(this.data.filter))
+    }).catch(error => this.setData({ loading: false, message: error.message }))
   },
-  chooseFilter(event) {
-    this.setData({ filter: event.currentTarget.dataset.filter }, () => this.refresh())
+  applyFilter(filter) {
+    this.setData({ filter, tasks: filter ? this.data.allTasks.filter(item => item.salesmanStatus === filter) : this.data.allTasks })
   },
+  chooseFilter(event) { this.applyFilter(event.currentTarget.dataset.filter) },
   openTask(event) { wx.navigateTo({ url: `/modules/salesman/pages/task-detail/index?id=${event.currentTarget.dataset.id}` }) }
 })

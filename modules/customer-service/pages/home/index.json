@@ -1,1 +1,6 @@
-{"navigationBarTitleText":"客服端","usingComponents":{"role-bottom-nav":"/components/role-bottom-nav/index"}}
+{
+  "navigationBarTitleText": "客服工作台",
+  "usingComponents": {
+    "role-bottom-nav": "/components/role-bottom-nav/index"
+  }
+}

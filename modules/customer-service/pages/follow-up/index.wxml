@@ -1,0 +1,15 @@
+<view class="page">
+  <view class="header"><text class="title">项目跟进</text><text class="desc">查看网点接单后的当前办理进度</text></view>
+  <view class="filters"><view wx:for="{{filters}}" wx:key="key" class="filter {{status === item.key ? 'active' : ''}}" data-status="{{item.key}}" bindtap="chooseFilter">{{item.label}}</view></view>
+  <text wx:if="{{message}}" class="message">{{message}}</text>
+  <view wx:if="{{loading}}" class="empty">正在读取项目进度…</view>
+  <view wx:for="{{records}}" wx:key="id" class="card" data-index="{{index}}" bindtap="openDetail">
+    <view class="head"><view><text class="customer">{{item.customerName}}</text><text class="outlet">{{item.branchName}}</text></view><text class="status">{{item.statusText}}</text></view>
+    <view class="row"><text>当前业务员</text><text>{{item.salesmanName}}</text></view>
+    <view class="row"><text>办理进度</text><text>{{item.progress || item.statusText}}</text></view>
+    <view class="row"><text>更新时间</text><text>{{item.updatedAt || '未记录'}}</text></view>
+    <view class="entry"><text>查看客户、审核及网点处理详情</text><text>›</text></view>
+  </view>
+  <view wx:if="{{!loading && !records.length}}" class="empty">当前分类暂无项目</view>
+  <role-bottom-nav role="customer-service" current="follow-up"></role-bottom-nav>
+</view>

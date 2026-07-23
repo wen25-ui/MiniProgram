@@ -1,1 +1,7 @@
-{"navigationBarTitleText":"业务员端","usingComponents":{"role-bottom-nav":"/components/role-bottom-nav/index"}}
+{
+  "navigationBarTitleText": "业务员工作台",
+  "usingComponents": {
+    "role-bottom-nav": "/components/role-bottom-nav/index",
+    "transfer-request": "/modules/salesman/components/transfer-request/index"
+  }
+}

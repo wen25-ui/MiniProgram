@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "项目跟进",
+  "usingComponents": {
+    "role-bottom-nav": "/components/role-bottom-nav/index"
+  }
+}

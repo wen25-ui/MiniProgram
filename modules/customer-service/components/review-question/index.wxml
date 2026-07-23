@@ -1,0 +1,31 @@
+<view class="question-card">
+  <view class="question-head">
+    <text class="number">{{index + 1}}</text>
+    <view class="question-copy">
+      <text class="title">{{question.title}}</text>
+      <text class="state">{{question.answered ? '已填写' : '待填写'}}</text>
+    </view>
+  </view>
+
+  <view wx:if="{{question.inputType === 'single' && question.options.length}}" class="options">
+    <view wx:for="{{question.options}}" wx:key="value"
+      class="option {{question.answer === item.value ? 'selected' : ''}}"
+      data-value="{{item.value}}" bindtap="chooseSingle">
+      <text>{{item.label}}</text><text>{{question.answer === item.value ? '✓' : ''}}</text>
+    </view>
+  </view>
+
+  <view wx:elif="{{question.inputType === 'multiple' && question.options.length}}" class="options">
+    <view wx:for="{{question.options}}" wx:key="value"
+      class="option {{item.selected ? 'selected' : ''}}"
+      data-value="{{item.value}}" bindtap="toggleMultiple">
+      <text>{{item.label}}</text><text>{{item.selected ? '✓' : ''}}</text>
+    </view>
+  </view>
+
+  <textarea wx:elif="{{question.inputType === 'text'}}" class="text-answer"
+    value="{{question.answer}}" disabled="{{disabled}}" maxlength="500"
+    placeholder="请输入审核答案" bindblur="finishText"/>
+
+  <view wx:else class="missing-options">该问题尚未配置选项，请联系管理员完善问题配置。</view>
+</view>

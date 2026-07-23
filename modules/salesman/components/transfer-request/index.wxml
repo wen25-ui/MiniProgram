@@ -1,0 +1,7 @@
+<view class="transfer-card">
+  <view class="head"><text>收到转接请求</text><text>PENDING</text></view>
+  <view class="row"><text>转出业务员</text><text>{{request.fromSalesmanName || request.fromName || '同网点业务员'}}</text></view>
+  <view class="row"><text>客户</text><text>{{request.customerName || '客户信息待补充'}}</text></view>
+  <view class="reason">转接原因：{{request.reason || '未填写'}}</view>
+  <view class="actions"><button data-decision="reject" bindtap="decide">拒绝</button><button class="accept" loading="{{operatingId == request.id}}" data-decision="accept" bindtap="decide">接受</button></view>
+</view>

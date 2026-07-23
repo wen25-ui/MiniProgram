@@ -5,6 +5,7 @@ const createQrCode = require('qrcode-generator')
 const db = require('./db')
 const phoneDb = require('./phone-db')
 const config = require('./config')
+const { createOrganizationApi } = require('./organization-api')
 const { TASK_STATUS_TEXT, canTransitionTask } = require('../../domain/task/status')
 
 const roles = new Set(['client', 'merchant', 'salesman', 'customer-service', 'finance', 'boss', 'admin'])
@@ -45,7 +46,7 @@ function json(res, code, body) {
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' })
   res.end(JSON.stringify(body))
 }
-function error(res, code, message) { json(res, code, { error: message }) }
+function error(res, code, message) { json(res, code, { success: false, error: message }) }
 function validPhone(phone) { return /^1\d{10}$/.test(String(phone || '').replace(/\s/g, '')) }
 function normalizeRegion(value) { return String(value || '').replace(/[省市自治区特别行政区\s]/g, '') }
 async function findPhoneAttribution(phone) {
@@ -675,6 +676,21 @@ async function salesmanApplications(req, res) {
   )
   json(res, 200, { salesmanType: branch ? 'BRANCH' : 'HOME_VISIT', applications: rows.map(staffApplicationView) })
 }
+async function salesmanOrganizationApplications(req, res) {
+  const user = await sessionFor(req, 'salesman')
+  const [rows] = await db.query(
+    `SELECT a.*, f.voucher_remark, f.verification_reason
+       FROM applications a
+       LEFT JOIN fulfillment_submissions f ON f.id = (
+         SELECT id FROM fulfillment_submissions WHERE application_id = a.id ORDER BY submitted_at DESC LIMIT 1
+       )
+      WHERE (a.current_salesman_id = ? OR (a.current_salesman_id IS NULL AND a.assigned_salesman_user_id = ?))
+        AND a.status IN ('ASSIGNED', 'PROCESSING', 'VERIFICATION_RETURNED', 'PENDING_VERIFICATION')
+      ORDER BY a.appointment_time ASC, a.updated_at ASC`,
+    [user.id, user.id]
+  )
+  json(res, 200, { salesmanType: user.salesman_type || '', applications: rows.map(staffApplicationView) })
+}
 async function salesmanAction(req, res, id, action) {
   const user = await sessionFor(req, 'salesman')
   const body = await readBody(req)
@@ -725,12 +741,15 @@ function taskView(row, includePhone = false) {
   const terminalOrLocked = ['PENDING_ACCEPT', 'PENDING_VERIFICATION', 'COMPLETED', 'ABNORMAL_CLOSED', 'PROCESSING_FAILED', 'CANCELLED']
   return {
     id: row.id, applicationId: row.application_id, serviceType: row.service_type,
+    businessType: row.service_type, projectName: row.project_name || '',
     status: row.status, statusText: TASK_STATUS_TEXT[row.status] || row.status,
     customerName: row.customer_name || '未填写',
     customerPhone: includePhone ? phone : '',
     maskedPhone: phone.length >= 7 ? `${phone.slice(0, 3)}****${phone.slice(-4)}` : phone,
     serviceAddress: row.service_address || '', appointmentTime: row.appointment_time,
     storeId: row.store_id, storeName: row.store_name || '', assigneeUserId: row.assignee_user_id,
+    branchId: row.branch_id || null, branchName: row.branch_name || '',
+    assignType: row.assign_type || null, orderSource: row.assign_type || null,
     contactFailCount: Number(row.contact_fail_count || 0), failReason: row.fail_reason || '',
     canAbnormalClose: !terminalOrLocked.includes(row.status),
     dispatchedAt: row.created_at, acceptedAt: row.accepted_at, contactedAt: row.contacted_at,
@@ -770,14 +789,42 @@ async function salesmanTasks(req, res, category) {
   )
   json(res, 200, { salesmanType: branch ? 'BRANCH' : 'HOME_VISIT', tasks: rows.map(row => taskView(row)) })
 }
+async function salesmanOrganizationTasks(req, res, category) {
+  const user = await sessionFor(req, 'salesman')
+  const statuses = taskCategories[category] || []
+  const statusSql = statuses.length ? ` AND t.status IN (${statuses.map(() => '?').join(',')})` : ''
+  const [rows] = await db.query(
+    `SELECT t.*, m.name AS store_name, b.name AS branch_name,
+            COALESCE(t.assign_type, a.assign_type) AS assign_type,
+            f.voucher_remark, f.verification_reason
+       FROM application_tasks t
+       JOIN applications a ON a.id = t.application_id
+       LEFT JOIN merchants m ON m.id = t.store_id
+       LEFT JOIN branches b ON b.id = COALESCE(t.branch_id, a.branch_id)
+       LEFT JOIN fulfillment_submissions f ON f.id = (
+         SELECT id FROM fulfillment_submissions WHERE task_id = t.id ORDER BY submitted_at DESC LIMIT 1
+       )
+      WHERE (a.current_salesman_id = ? OR (a.current_salesman_id IS NULL AND t.assignee_user_id = ?))${statusSql}
+      ORDER BY COALESCE(t.appointment_time, t.created_at) ASC, t.updated_at ASC`,
+    [user.id, user.id, ...statuses]
+  )
+  json(res, 200, { salesmanType: user.salesman_type || '', tasks: rows.map(row => taskView(row)) })
+}
 async function salesmanTaskDetail(req, res, id) {
   const user = await sessionFor(req, 'salesman')
   const [[row]] = await db.query(
-    `SELECT t.*, m.name AS store_name, f.voucher_remark, f.verification_reason
-       FROM application_tasks t LEFT JOIN merchants m ON m.id = t.store_id
+    `SELECT t.*, a.current_salesman_id, a.branch_id AS order_branch_id,
+            m.name AS store_name, b.name AS branch_name, COALESCE(t.assign_type, a.assign_type) AS assign_type,
+            f.voucher_remark, f.verification_reason
+       FROM application_tasks t JOIN applications a ON a.id = t.application_id
+       LEFT JOIN merchants m ON m.id = t.store_id
+       LEFT JOIN branches b ON b.id = COALESCE(t.branch_id, a.branch_id)
        LEFT JOIN fulfillment_submissions f ON f.id = (SELECT id FROM fulfillment_submissions WHERE task_id = t.id ORDER BY submitted_at DESC LIMIT 1)
       WHERE t.id = ?`, [id]
   )
+  if (row && (row.branch_id || row.order_branch_id) && Number(row.current_salesman_id) !== Number(user.id)) {
+    throw Object.assign(new Error('Task is not assigned to the current salesman'), { status: 403 })
+  }
   assertTaskOwnership(row, user)
   const [contacts] = await db.query(
     `SELECT c.id, c.contact_method, c.result, c.failure_reason, c.remark, c.is_retry, c.contacted_at,
@@ -804,7 +851,13 @@ async function salesmanTaskAction(req, res, id, action) {
     await connection.beginTransaction()
     const [[task]] = await connection.execute('SELECT * FROM application_tasks WHERE id = ? FOR UPDATE', [id])
     assertTaskOwnership(task, user)
-    const [[application]] = await connection.execute('SELECT status FROM applications WHERE id = ? FOR UPDATE', [task.application_id])
+    const [[application]] = await connection.execute(
+      'SELECT status, branch_id, current_salesman_id FROM applications WHERE id = ? FOR UPDATE',
+      [task.application_id]
+    )
+    if (application.branch_id && Number(application.current_salesman_id) !== Number(user.id)) {
+      throw Object.assign(new Error('Task is not assigned to the current salesman'), { status: 403 })
+    }
     if (action === 'accept') {
       if (task.status !== 'PENDING_ACCEPT') throw Object.assign(new Error('当前任务无需重复接收'), { status: 409 })
       if (task.service_type === 'STORE_SERVICE' && !task.assignee_user_id) {
@@ -1248,6 +1301,8 @@ async function adminOrderDetail(req, res, id) {
   } })
 }
 
+const organizationApi = createOrganizationApi({ db, sessionFor, readBody, json })
+
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`)
@@ -1260,6 +1315,8 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'POST' && url.pathname === '/v1/auth/register') {
       const body = await readBody(req); return json(res, 201, await registerClient(body))
     }
+    const organizationResult = await organizationApi.route(req, res, url)
+    if (organizationResult !== false) return organizationResult
     if (req.method === 'GET' && url.pathname === '/v1/phone-attribution') {
       await sessionFor(req, 'client')
       return json(res, 200, await findPhoneAttribution(url.searchParams.get('phone')))
@@ -1300,10 +1357,10 @@ const server = http.createServer(async (req, res) => {
     if (req.method === 'GET' && customerDetailMatch) return await customerApplicationDetail(req, res, customerDetailMatch[1])
     const customerMatch = url.pathname.match(/^\/v1\/customer\/applications\/([\w-]+)\/(start-contact|contact-result|verify-info|intention|correct-info|service-type|review|retry-contact|service-mode|confirm-appointment|dispatch|assign-store|start-store|submit-store|service-fail|verify)$/)
     if (req.method === 'POST' && customerMatch) return await customerAction(req, res, customerMatch[1], customerMatch[2])
-    if (req.method === 'GET' && url.pathname === '/v1/salesman/applications') return await salesmanApplications(req, res)
+    if (req.method === 'GET' && url.pathname === '/v1/salesman/applications') return await salesmanOrganizationApplications(req, res)
     const salesmanMatch = url.pathname.match(/^\/v1\/salesman\/applications\/([\w-]+)\/(start|submit|fail)$/)
     if (req.method === 'POST' && salesmanMatch) return await salesmanAction(req, res, salesmanMatch[1], salesmanMatch[2])
-    if (req.method === 'GET' && url.pathname === '/v1/salesman/tasks') return await salesmanTasks(req, res, url.searchParams.get('category'))
+    if (req.method === 'GET' && url.pathname === '/v1/salesman/tasks') return await salesmanOrganizationTasks(req, res, url.searchParams.get('category'))
     const salesmanTaskDetailMatch = url.pathname.match(/^\/v1\/salesman\/tasks\/([\w-]+)$/)
     if (req.method === 'GET' && salesmanTaskDetailMatch) return await salesmanTaskDetail(req, res, salesmanTaskDetailMatch[1])
     const salesmanTaskActionMatch = url.pathname.match(/^\/v1\/salesman\/tasks\/([\w-]+)\/(accept|contact|appointment|arrive|start|finish-processing|result|abnormal-close)$/)

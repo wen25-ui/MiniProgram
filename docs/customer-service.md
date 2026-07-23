@@ -1,24 +1,32 @@
 # 客服模块知识库
 
 ## 模块定位
-负责客户申请审核、业务流程推进、预约确认和业务员派单。
+负责客户申请审核、客户联系、资料完善、网点指派和项目跟进。客服不再直接指派业务员，也不负责结果核销。
 
 ## 目录
 modules/customer-service
 
 ## 页面
-- pages/home/index
-- pages/review/index
-- pages/dispatch/index
-- pages/verification/index
-- pages/all-data/index
+- pages/home/index：客服工作台
+- pages/review/index：审核派遣列表
+- pages/review-detail/index：动态展开式审核及网点指派
+- pages/follow-up/index：项目跟进
+- pages/business-detail/index：项目跟进详情
 
-## 业务流程
+旧 `dispatch`、`verification`、`verification-detail`、`all-data` 页面文件暂时保留，但已从客服路由和导航废弃。
+
+## 当前客服业务流程
 客户提交申请
-→ 客服审核
-→ 审核通过
-→ 确认预约
-→ 指派业务员
+→ 客服审核并联系客户
+→ 动态完善客户资料
+→ 客服选择办理网点
+→ 进入项目跟进
+
+网点内部负责后续业务员调度。客服工作台只展示待审核、待重联、跟进中和完成任务，不再提供核销入口。
+
+审核列表在前端兼容映射新状态：`PENDING` 显示为 `WAIT_REVIEW`，未联系成功显示为 `WAIT_RECONTACT`。后端完成状态迁移后可直接返回新状态码。
+
+客服内部标签和备注仅在客服审核详情展示。其读写接口为预留接口，后端需保证客户端和商家端接口不返回这些字段。
 
 客服工作台展示待审核、待派遣、已派遣、待核销、核销完成和全部数据；“全部数据”支持按上述阶段筛选。结果核销页区分待核销与已完成核销记录。
 

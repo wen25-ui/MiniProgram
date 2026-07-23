@@ -1,1 +1,6 @@
-{"navigationBarTitleText":"审核与预约","usingComponents":{"role-bottom-nav":"/components/role-bottom-nav/index"}}
+{
+  "navigationBarTitleText": "审核派遣",
+  "usingComponents": {
+    "role-bottom-nav": "/components/role-bottom-nav/index"
+  }
+}

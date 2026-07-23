@@ -1,1 +1,6 @@
-{"navigationBarTitleText":"审核申请详情"}
+{
+  "navigationBarTitleText": "审核派遣详情",
+  "usingComponents": {
+    "review-question": "/modules/customer-service/components/review-question/index"
+  }
+}

@@ -1,31 +1,15 @@
 <view class="page">
-  <view class="sticky-filter">
-  <view class="header">
-    <text class="title">客服审核中心</text>
-    <text class="desc">展示待审核、联系、核实、意愿确认和信息修正任务</text>
-  </view>
-
-  <view class="summary-bar">
-    <view><text class="summary-count">{{filtered.length}}</text><text>条匹配待办</text></view>
-    <text class="summary-note">点击申请按当前阶段继续处理</text>
-  </view>
-  <scroll-view class="filters" scroll-x="true"><view class="filter-row"><view wx:for="{{filters}}" wx:key="key" class="filter {{filter===item.key?'active':''}}" data-filter="{{item.key}}" bindtap="chooseFilter">{{item.label}}</view></view></scroll-view>
-  </view>
-
+  <view class="header"><text class="title">审核派遣</text><text class="desc">联系客户、完成审核并指派办理网点</text></view>
+  <view class="summary-bar"><view><text class="summary-count">{{reviews.length}}</text><text>条审核任务</text></view><text class="summary-note">客服人工处理</text></view>
+  <view class="filters"><view wx:for="{{filters}}" wx:key="key" class="filter {{status === item.key ? 'active' : ''}}" data-status="{{item.key}}" bindtap="chooseFilter">{{item.label}}</view></view>
   <text wx:if="{{message}}" class="message">{{message}}</text>
-  <view wx:if="{{loading}}" class="state-card"><view class="loading-ring"></view><text>正在读取待审核申请…</text></view>
-
-  <view wx:for="{{filtered}}" wx:key="id" class="card {{item.needsRecontact?'recontact-card':''}}" data-id="{{item.id}}" bindtap="openDetail">
-    <view class="head">
-      <view><text class="phone">{{item.maskedPhone}}</text><text class="merchant">{{item.merchantName}}</text></view>
-      <text class="status">{{item.statusText}}</text>
-    </view>
-    <view class="meta"><text>申请编号</text><text>{{item.id}}</text></view>
-    <view class="meta"><text>提交时间</text><text>{{item.submittedAt}}</text></view>
-    <view wx:if="{{item.needsRecontact}}" class="contact-flag"><text>待重新联系</text><text>{{item.contactReason}}</text></view>
-    <view class="detail-entry"><text>{{item.needsRecontact?'重新联系客户':'查看问卷并处理'}}</text><text>›</text></view>
+  <view wx:if="{{loading}}" class="state-card"><view class="loading-ring"></view><text>正在读取审核任务…</text></view>
+  <view wx:for="{{reviews}}" wx:key="id" class="card {{item.status === 'WAIT_RECONTACT' ? 'recontact-card' : ''}}" data-index="{{index}}" bindtap="openDetail">
+    <view class="head"><view><text class="customer">{{item.customerName}}</text><text class="phone">{{item.maskedPhone}}</text></view><text class="status">{{item.statusText}}</text></view>
+    <view class="meta"><text>申请项目</text><text>{{item.projectName}}</text></view>
+    <view class="meta"><text>更新时间</text><text>{{item.updatedAt || item.submittedAt || '未记录'}}</text></view>
+    <view class="detail-entry"><text>{{item.status === 'WAIT_RECONTACT' ? '重新联系并继续审核' : '进入审核派遣'}}</text><text>›</text></view>
   </view>
-
-  <view wx:if="{{!loading&&!filtered.length}}" class="empty"><text class="empty-icon">✓</text><text>当前分类没有审核待办</text></view>
+  <view wx:if="{{!loading && !reviews.length}}" class="empty"><text class="empty-icon">✓</text><text>当前分类没有审核任务</text></view>
   <role-bottom-nav role="customer-service" current="review"></role-bottom-nav>
 </view>

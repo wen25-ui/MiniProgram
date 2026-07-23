@@ -37,6 +37,21 @@ function getCustomerOutlets() {
 function getRegionalDispatchCandidates(id) {
   return customerRequest(`/v1/customer/applications/${id}/dispatch-candidates`)
 }
+function getCustomerFollowUps() {
+  return getCustomerWorkItems()
+}
+function getNearbyOutlets(id) {
+  return getRegionalDispatchCandidates(id).then(response => response.outlets || { candidates: [], matchLevel: '' })
+}
+function getCustomerServiceProfile(id) {
+  return customerRequest(`/v1/customer/applications/${id}/customer-service-profile`)
+}
+function saveCustomerServiceProfile(id, tags, note) {
+  return customerRequest(`/v1/customer/applications/${id}/customer-service-profile`, { tags, note })
+}
+function assignCustomerOutlet(id, outletId) {
+  return customerRequest(`/v1/customer/applications/${id}/outlet-assignment`, { outletId })
+}
 function getCustomerVerifications(category) {
   const query = ['completed', 'rejected'].includes(category) ? `?category=${category}` : ''
   return customerRequest(`/v1/customer/verifications${query}`).then(response => response.verifications || [])
@@ -68,6 +83,10 @@ function getSalesmanTasks(category) {
   const query = category ? `?category=${encodeURIComponent(category)}` : ''
   return salesmanRequest(`/v1/salesman/tasks${query}`).then(response => response.tasks || [])
 }
+function getSalesmanGrabOrders() { return salesmanRequest('/v1/salesman/grab-orders').then(response => response.orders || []) }
+function grabSalesmanOrder(orderId) { return salesmanRequest('/v1/salesman/grab-order', { orderId }) }
+function transferSalesmanTask(taskId, receiverUserId, reason) { return salesmanRequest('/v1/salesman/task-transfer', { taskId, receiverUserId, reason }) }
+function getSalesmanBranch() { return salesmanRequest('/v1/salesman/branch').then(response => response.branch) }
 function getSalesmanTask(id) { return salesmanRequest(`/v1/salesman/tasks/${id}`).then(response => response.task) }
 function acceptSalesmanTask(id) { return salesmanRequest(`/v1/salesman/tasks/${id}/accept`, {}) }
 function recordSalesmanContact(id, data) { return salesmanRequest(`/v1/salesman/tasks/${id}/contact`, data) }
@@ -86,6 +105,11 @@ module.exports = {
   getCustomerSalesmen,
   getCustomerOutlets,
   getRegionalDispatchCandidates,
+  getCustomerFollowUps,
+  getNearbyOutlets,
+  getCustomerServiceProfile,
+  saveCustomerServiceProfile,
+  assignCustomerOutlet,
   getCustomerVerifications,
   getCustomerVerification,
   reviewApplication,
@@ -109,6 +133,10 @@ module.exports = {
   submitFulfillment,
   failHomeService,
   getSalesmanTasks,
+  getSalesmanGrabOrders,
+  grabSalesmanOrder,
+  transferSalesmanTask,
+  getSalesmanBranch,
   getSalesmanTask,
   acceptSalesmanTask,
   recordSalesmanContact,
