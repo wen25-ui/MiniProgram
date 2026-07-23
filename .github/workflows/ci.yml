@@ -1,0 +1,159 @@
+name: MiniProgram CI
+
+on:
+  push:
+    branches:
+      - main
+      - codexuser
+      - agent/github-ci-database-test
+  pull_request:
+    branches:
+      - main
+      - codexuser
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: miniprogram-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server-unit-tests:
+    name: Server tests (Node.js ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version:
+          - 20
+          - 22
+
+    defaults:
+      run:
+        working-directory: server
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+          cache-dependency-path: server/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+
+  repository-static-check:
+    name: Mini program static checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Check JavaScript syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do
+            echo "Checking JavaScript: $file"
+            node --check "$file"
+          done < <(
+            find . \
+              -path './.git' -prune -o \
+              -path './server/node_modules' -prune -o \
+              -name '*.js' -type f -print0
+          )
+
+      - name: Validate JSON files
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs')
+          const path = require('path')
+
+          const ignoredDirectories = new Set(['.git', 'node_modules'])
+          let checked = 0
+          let failed = false
+
+          function walk(directory) {
+            for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+              if (entry.isDirectory() && ignoredDirectories.has(entry.name)) continue
+
+              const filePath = path.join(directory, entry.name)
+              if (entry.isDirectory()) {
+                walk(filePath)
+                continue
+              }
+
+              if (!entry.name.endsWith('.json')) continue
+
+              const source = fs.readFileSync(filePath, 'utf8').replace(/^\uFEFF/, '')
+              try {
+                JSON.parse(source)
+                checked += 1
+                console.log(`Valid JSON: ${filePath}`)
+              } catch (error) {
+                failed = true
+                console.error(`Invalid JSON: ${filePath}`)
+                console.error(error.message)
+              }
+            }
+          }
+
+          walk('.')
+          console.log(`Checked ${checked} JSON files.`)
+          if (failed) process.exit(1)
+          NODE
+
+      - name: Validate app.json page files
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs')
+          const path = require('path')
+
+          const app = JSON.parse(fs.readFileSync('app.json', 'utf8').replace(/^\uFEFF/, ''))
+          const pageEntries = [
+            ...(Array.isArray(app.pages) ? app.pages : []),
+            ...(Array.isArray(app.subpackages)
+              ? app.subpackages.flatMap(pkg =>
+                  (pkg.pages || []).map(page => path.posix.join(pkg.root || '', page))
+                )
+              : [])
+          ]
+
+          const requiredExtensions = ['.js', '.json', '.wxml', '.wxss']
+          const missing = []
+
+          for (const page of pageEntries) {
+            for (const extension of requiredExtensions) {
+              const file = `${page}${extension}`
+              if (!fs.existsSync(file)) missing.push(file)
+            }
+          }
+
+          if (missing.length) {
+            console.error('Missing page files:')
+            for (const file of missing) console.error(`- ${file}`)
+            process.exit(1)
+          }
+
+          console.log(`Validated ${pageEntries.length} page entries.`)
+          NODE
