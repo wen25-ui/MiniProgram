@@ -18,6 +18,38 @@
 
 `project.private.config.json` 已加入 `.gitignore`，后续拉取代码不会覆盖成员自己的本地配置；共享的 `project.config.json` 不包含 AppID。
 
+## 自动测试
+
+仓库包含两个 GitHub Actions 工作流：
+
+- `MiniProgram CI`：运行 Node.js 20/22 后端单元测试，并检查仓库中的 JavaScript、JSON 和小程序页面文件。
+- `Database Smoke Test`：使用只读事务连接远程 MySQL，然后启动 API 并请求 `/health`。该工作流不会执行数据库迁移，也不会写入业务数据。
+
+在 GitHub 仓库中进入 `Actions` 页面即可查看运行结果。向测试分支推送相关代码时会自动触发，也可以在工作流进入默认分支后使用 `Run workflow` 手动执行。
+
+本机测试后端：
+
+```powershell
+cd server
+npm ci
+npm test
+npm run test:db
+```
+
+启动本地 API：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\server\start-local.ps1
+```
+
+启动成功后，浏览器访问 `http://127.0.0.1:3000/health`，正常结果为：
+
+```json
+{"ok":true}
+```
+
+GitHub Actions 只能测试代码和后端服务，不能渲染微信小程序界面。页面预览、扫码和真机调试仍需使用微信开发者工具。
+
 ## 业务闭环
 
 客户：
