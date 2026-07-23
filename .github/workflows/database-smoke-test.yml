@@ -52,49 +52,7 @@ jobs:
         run: npm ci
 
       - name: Check remote database in a read-only transaction
-        shell: bash
-        run: |
-          node <<'NODE'
-          const mysql = require('mysql2/promise')
-
-          async function main() {
-            const connection = await mysql.createConnection({
-              host: process.env.DB_HOST,
-              port: Number(process.env.DB_PORT),
-              database: process.env.DB_NAME,
-              user: process.env.DB_USER,
-              password: process.env.DB_PASSWORD,
-              connectTimeout: 15000,
-              charset: 'utf8mb4'
-            })
-
-            try {
-              await connection.query('SET SESSION TRANSACTION READ ONLY')
-              await connection.query('START TRANSACTION READ ONLY')
-
-              const [[info]] = await connection.query(
-                'SELECT DATABASE() AS databaseName, VERSION() AS databaseVersion, CURRENT_USER() AS currentUser'
-              )
-              const [tables] = await connection.query('SHOW TABLES')
-
-              console.log('Database connection succeeded.')
-              console.log(`Database: ${info.databaseName}`)
-              console.log(`Version: ${info.databaseVersion}`)
-              console.log(`Current user: ${info.currentUser}`)
-              console.log(`Table count: ${tables.length}`)
-
-              await connection.rollback()
-            } finally {
-              await connection.end()
-            }
-          }
-
-          main().catch(error => {
-            console.error('Database smoke test failed.')
-            console.error(error.message)
-            process.exit(1)
-          })
-          NODE
+        run: npm run test:db
 
       - name: Start API service
         shell: bash
