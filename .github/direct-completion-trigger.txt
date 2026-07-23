@@ -4,3 +4,4 @@ Capture syntax failures in an isolated candidate branch.
 Rerun after SQL string quoting fix.
 Capture unit test failures in the candidate branch.
 Rerun after updating the direct-completion state tests.
+Trigger cleanup of the temporary PR and branches.
