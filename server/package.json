@@ -5,6 +5,7 @@
   "scripts": {
     "migrate": "node src/migrate.js",
     "test": "node --test test/*.test.js",
+    "test:db": "node scripts/check-database.js",
     "import:phone": "node scripts/import-phone-location.js",
     "start": "node src/index.js",
     "dev": "node --watch src/index.js"
