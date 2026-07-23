@@ -130,16 +130,18 @@ jobs:
           const path = require('path')
 
           const app = JSON.parse(fs.readFileSync('app.json', 'utf8').replace(/^\uFEFF/, ''))
+          const subpackages = app.subpackages || app.subPackages || []
           const pageEntries = [
             ...(Array.isArray(app.pages) ? app.pages : []),
-            ...(Array.isArray(app.subpackages)
-              ? app.subpackages.flatMap(pkg =>
+            ...(Array.isArray(subpackages)
+              ? subpackages.flatMap(pkg =>
                   (pkg.pages || []).map(page => path.posix.join(pkg.root || '', page))
                 )
               : [])
           ]
 
-          const requiredExtensions = ['.js', '.json', '.wxml', '.wxss']
+          // 微信小程序页面必须具备逻辑与模板文件；页面级 JSON/WXSS 可以省略。
+          const requiredExtensions = ['.js', '.wxml']
           const missing = []
 
           for (const page of pageEntries) {
@@ -150,7 +152,7 @@ jobs:
           }
 
           if (missing.length) {
-            console.error('Missing page files:')
+            console.error('Missing required page files:')
             for (const file of missing) console.error(`- ${file}`)
             process.exit(1)
           }
