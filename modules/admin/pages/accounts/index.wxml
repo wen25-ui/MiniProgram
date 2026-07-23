@@ -20,10 +20,15 @@
     <view class="form-head"><view><text class="form-title">{{editing?'修改':'新增'}}{{role==='merchant'?'商家':role==='salesman'?'业务员':'客服'}}</text><text class="form-desc">请完整填写账号基础信息</text></view><view class="form-badge">{{editing?'编辑':'新建'}}</view></view>
     <text class="label">{{role==='merchant'?'商家名称':'姓名'}}</text>
     <input class="input" value="{{form.displayName}}" data-field="displayName" bindinput="input" placeholder="请输入{{role==='merchant'?'商家名称':'姓名'}}"/>
-    <block wx:if="{{role==='merchant'}}"><text class="label">联系人</text><input class="input" value="{{form.contactName}}" data-field="contactName" bindinput="input" placeholder="请输入联系人姓名"/></block>
+    <block wx:if="{{role==='merchant'}}"><text class="label">联系人</text><input class="input" value="{{form.contactName}}" data-field="contactName" bindinput="input" placeholder="请输入联系人姓名"/><text class="label">网点服务地域</text><input class="input" value="{{form.serviceRegion}}" data-field="serviceRegion" bindinput="input" placeholder="需与客户服务地域一致，如：滨湖区"/></block>
     <text class="label">登录手机号</text>
     <input class="input" type="number" maxlength="11" value="{{form.phone}}" data-field="phone" bindinput="input" placeholder="请输入 11 位手机号"/>
-    <block wx:if="{{role==='salesman'}}"><text class="label">业务员工号</text><input class="input" value="{{form.salesmanCode}}" data-field="salesmanCode" bindinput="input" placeholder="请输入唯一业务员工号"/><text class="label">业务员类型</text><radio-group bindchange="changeSalesmanType"><label class="detail"><radio value="HOME_VISIT" checked="{{form.salesmanType==='HOME_VISIT'}}" color="#2457c5"/><text>上门型（前往客户地点）</text></label><label class="detail"><radio value="BRANCH" checked="{{form.salesmanType==='BRANCH'}}" color="#2457c5"/><text>网点型（等待客户上门）</text></label></radio-group></block>
+    <block wx:if="{{role==='salesman'}}">
+      <text class="label">业务员工号</text><input class="input" value="{{form.salesmanCode}}" data-field="salesmanCode" bindinput="input" placeholder="请输入唯一业务员工号"/>
+      <text class="label">业务员类型</text><radio-group bindchange="changeSalesmanType"><label class="detail"><radio value="HOME_VISIT" checked="{{form.salesmanType==='HOME_VISIT'}}" color="#2457c5"/><text>上门型（前往客户地点）</text></label><label class="detail"><radio value="BRANCH" checked="{{form.salesmanType==='BRANCH'}}" color="#2457c5"/><text>网点型（等待客户上门）</text></label></radio-group>
+      <block wx:if="{{form.salesmanType==='HOME_VISIT'}}"><text class="label">负责地域</text><input class="input" value="{{form.serviceRegion}}" data-field="serviceRegion" bindinput="input" placeholder="需与派单地域一致，如：滨湖区"/></block>
+      <block wx:if="{{form.salesmanType==='BRANCH'}}"><text class="label">所属办理网点</text><picker range="{{outlets}}" range-key="name" value="{{outletIndex}}" bindchange="changeOutlet"><view class="input">{{selectedOutletName || '请选择办理网点'}} ›</view></picker></block>
+    </block>
     <text class="label">{{editing?'重置密码（不修改请留空）':'初始密码'}}</text>
     <input class="input" password value="{{form.password}}" data-field="password" bindinput="input" placeholder="至少 6 位"/>
     <view wx:if="{{editing}}" class="status-row"><view><text>允许登录</text><text>关闭后该账号将无法进入系统</text></view><switch checked="{{form.accountStatus==='ACTIVE'}}" color="#2457c5" bindchange="changeStatus"/></view>
@@ -34,8 +39,11 @@
     <view wx:for="{{accounts}}" wx:key="id" class="account-card">
       <view class="card-head"><view class="avatar">{{role==='merchant'?'商':role==='salesman'?'业':'客'}}</view><view class="identity"><text class="name">{{item.merchantName || item.displayName}}</text><text class="phone">{{item.phone}}</text></view><text class="status {{item.accountStatus==='ACTIVE'?'enabled':'disabled'}}"><text class="status-dot"></text>{{item.accountStatus==='ACTIVE'?'正常':'已停用'}}</text></view>
       <view wx:if="{{role==='merchant'}}" class="detail"><text>联系人</text><text>{{item.contactName || '未填写'}}</text></view>
+      <view wx:if="{{role==='merchant'}}" class="detail"><text>服务地域</text><text>{{item.serviceRegion || '未设置'}}</text></view>
       <view wx:if="{{role==='salesman'}}" class="detail"><text>业务员工号</text><text>{{item.salesmanCode}}</text></view>
       <view wx:if="{{role==='salesman'}}" class="detail"><text>业务员类型</text><text>{{item.salesmanType==='BRANCH'?'网点型':'上门型'}}</text></view>
+      <view wx:if="{{role==='salesman'&&item.salesmanType==='HOME_VISIT'}}" class="detail"><text>负责地域</text><text>{{item.serviceRegion || '未设置'}}</text></view>
+      <view wx:if="{{role==='salesman'&&item.salesmanType==='BRANCH'}}" class="detail"><text>所属网点</text><text>{{item.assignedMerchantName || '未绑定'}}</text></view>
       <view class="actions"><button data-id="{{item.id}}" bindtap="editAccount">修改</button><button class="delete" data-id="{{item.id}}" bindtap="remove">删除</button></view>
     </view>
     <view wx:if="{{!loading&&!accounts.length}}" class="empty"><view class="empty-icon">＋</view><text>暂无{{role==='merchant'?'商家':role==='salesman'?'业务员':'客服'}}账号</text><text>点击上方按钮创建第一个账号</text></view>

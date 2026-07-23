@@ -15,7 +15,7 @@
     },
     {
       "root": "modules/salesman",
-      "pages": ["pages/home/index", "pages/tasks/index"]
+      "pages": ["pages/home/index", "pages/tasks/index", "pages/schedule/index", "pages/task-detail/index"]
     },
     {
       "root": "modules/customer-service",

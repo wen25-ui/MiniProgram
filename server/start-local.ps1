@@ -37,6 +37,14 @@ $env:LOCAL_AREA_CODE = '510100'
 $env:DB_USER = if ($env:DB_USER) { $env:DB_USER } else { 'gongbw' }
 $env:DB_PASSWORD = if ($env:DB_PASSWORD) { $env:DB_PASSWORD } else { 'szeyQss5AIaYPfdx' }
 
+$phoneEnvPath = Join-Path $scriptRoot '.env.phone'
+if (Test-Path -LiteralPath $phoneEnvPath) {
+  foreach ($line in Get-Content -LiteralPath $phoneEnvPath) {
+    if ($line -match '^([^#=]+)=(.*)$') { Set-Item -Path "Env:$($matches[1].Trim())" -Value $matches[2].Trim() }
+  }
+}
+$env:PHONE_DB_PORT = if ($env:PHONE_DB_PORT) { $env:PHONE_DB_PORT } else { '4000' }
+
 if (-not (Test-Path 'node_modules')) {
   npm install
 }

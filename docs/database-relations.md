@@ -6,9 +6,21 @@
 ↓
 申请(Application)
 ↓
-订单(Order)
+业务员任务(ApplicationTask)
+↓
+派单、联系、预约、任务状态日志、办理结果
 ↓
 财务记录(Finance)
+
+## 业务员任务关系
+
+- `applications`：申请和订单主状态。
+- `application_tasks`：每个已派单申请唯一的办理任务。
+- `application_dispatches`：保留派单历史，不承担任务当前状态。
+- `application_contact_records`：客服及业务员联系记录；业务员记录关联 `task_id`。
+- `application_task_status_history`：任务每次状态变化、操作人和原因。
+- `application_appointments`：上门或预计到店时间记录。
+- `fulfillment_submissions`：办理结果和客服核销记录，关联 `task_id`。
 
 ## 角色关系
 

@@ -1,6 +1,6 @@
 const { getSession, hasRole, clearSession } = require('../../../../core/auth/session')
 const { ROLES } = require('../../../../core/auth/roles')
-const { listAccounts, createAccount, updateAccount, deleteAccount } = require('../../../../services/admin-service')
+const { listAccounts, createAccount, updateAccount, deleteAccount, listOutlets } = require('../../../../services/admin-service')
 
 const TABS = [
   { role: 'merchant', label: '商家' },
@@ -9,11 +9,11 @@ const TABS = [
 ]
 
 function emptyForm() {
-  return { id: '', displayName: '', contactName: '', phone: '', salesmanCode: '', salesmanType: 'HOME_VISIT', password: '', accountStatus: 'ACTIVE' }
+  return { id: '', displayName: '', contactName: '', phone: '', salesmanCode: '', salesmanType: 'HOME_VISIT', serviceRegion: '', assignedMerchantId: '', password: '', accountStatus: 'ACTIVE' }
 }
 
 Page({
-  data: { tabs: TABS, role: 'merchant', accounts: [], loading: true, saving: false, message: '', showForm: false, editing: false, form: emptyForm() },
+  data: { tabs: TABS, role: 'merchant', accounts: [], outlets: [], outletIndex: 0, selectedOutletName: '', loading: true, saving: false, message: '', showForm: false, editing: false, form: emptyForm() },
   onShow() {
     const session = getSession()
     if (!session || !hasRole(session, ROLES.ADMIN)) return wx.reLaunch({ url: '/pages/auth/login/index' })
@@ -25,18 +25,34 @@ Page({
   },
   refresh() {
     this.setData({ loading: true })
-    listAccounts(this.data.role).then(accounts => this.setData({ accounts, loading: false, message: '' }))
+    const task = this.data.role === 'salesman' ? Promise.all([listAccounts(this.data.role), listOutlets()]) : Promise.all([listAccounts(this.data.role), Promise.resolve([])])
+    task.then(([accounts, outlets]) => this.setData({ accounts, outlets, loading: false, message: '' }))
       .catch(error => this.setData({ loading: false, message: error.message }))
   },
   addAccount() { this.setData({ showForm: true, editing: false, form: emptyForm(), message: '' }) },
   editAccount(event) {
     const item = this.data.accounts.find(entry => String(entry.id) === String(event.currentTarget.dataset.id))
     if (!item) return
-    this.setData({ showForm: true, editing: true, form: { id: item.id, displayName: item.merchantName || item.displayName || '', contactName: item.contactName || '', phone: item.phone || '', salesmanCode: item.salesmanCode || '', salesmanType: item.salesmanType || 'HOME_VISIT', password: '', accountStatus: item.accountStatus || 'ACTIVE' }, message: '' })
+    const outletIndex = Math.max(0, this.data.outlets.findIndex(outlet => String(outlet.id) === String(item.assignedMerchantId)))
+    this.setData({ showForm: true, editing: true, outletIndex, selectedOutletName: item.assignedMerchantName || '', form: { id: item.id, displayName: item.merchantName || item.displayName || '', contactName: item.contactName || '', phone: item.phone || '', salesmanCode: item.salesmanCode || '', salesmanType: item.salesmanType || 'HOME_VISIT', serviceRegion: item.serviceRegion || '', assignedMerchantId: item.assignedMerchantId || '', password: '', accountStatus: item.accountStatus || 'ACTIVE' }, message: '' })
   },
   input(event) { this.setData({ [`form.${event.currentTarget.dataset.field}`]: event.detail.value }) },
   changeStatus(event) { this.setData({ 'form.accountStatus': event.detail.value ? 'ACTIVE' : 'DISABLED' }) },
-  changeSalesmanType(event) { this.setData({ 'form.salesmanType': event.detail.value }) },
+  changeSalesmanType(event) {
+    const salesmanType = event.detail.value
+    const firstOutlet = this.data.outlets[0]
+    this.setData({
+      'form.salesmanType': salesmanType,
+      'form.assignedMerchantId': salesmanType === 'BRANCH' ? (this.data.form.assignedMerchantId || firstOutlet && firstOutlet.id || '') : '',
+      selectedOutletName: salesmanType === 'BRANCH' ? (this.data.selectedOutletName || firstOutlet && firstOutlet.name || '') : '',
+      outletIndex: salesmanType === 'BRANCH' ? this.data.outletIndex : 0
+    })
+  },
+  changeOutlet(event) {
+    const outletIndex = Number(event.detail.value)
+    const outlet = this.data.outlets[outletIndex]
+    this.setData({ outletIndex, selectedOutletName: outlet ? outlet.name : '', 'form.assignedMerchantId': outlet ? outlet.id : '' })
+  },
   cancelForm() { this.setData({ showForm: false, form: emptyForm(), message: '' }) },
   save() {
     if (this.data.saving) return

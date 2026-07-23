@@ -14,14 +14,17 @@
   <view wx:for="{{filtered}}" wx:key="id" class="card">
     <view class="head"><view><text class="phone">{{item.maskedPhone}}</text><text class="id">{{item.id}}</text></view><text class="status">{{item.statusText}}</text></view>
     <text class="description">{{item.statusDescription}}</text>
-    <view style="margin-top:16rpx;padding:16rpx;border-radius:12rpx;background:#f6f9fa;color:#607286;font-size:21rpx"><text>派遣类型：{{item.serviceMode==='HOME_SERVICE'?'上门办理':item.serviceMode==='STORE_SERVICE'?'指定网点办理':'待确认'}}</text><text wx:if="{{item.serviceMode==='HOME_SERVICE'&&item.salesmanName}}" style="display:block;margin-top:8rpx">业务员：{{item.salesmanName}}</text><text wx:if="{{item.serviceMode==='STORE_SERVICE'&&item.merchantName}}" style="display:block;margin-top:8rpx">指定网点：{{item.merchantName}}</text></view>
+    <view wx:if="{{item.taskStatusText}}" style="margin-top:12rpx;color:#0f7f89;font-size:22rpx">业务员任务状态：{{item.taskStatusText}}</view>
+    <view style="margin-top:16rpx;padding:16rpx;border-radius:12rpx;background:#f6f9fa;color:#607286;font-size:21rpx"><text>派遣类型：{{item.serviceMode==='HOME_SERVICE'?'上门办理':item.serviceMode==='STORE_SERVICE'?'指定网点办理':'待确认'}}</text><text wx:if="{{item.serviceMode}}" style="display:block;margin-top:8rpx">服务地域：{{item.serviceRegion || '未填写'}}</text><text wx:if="{{item.serviceMode==='HOME_SERVICE'}}" style="display:block;margin-top:8rpx">客户地址：{{item.serviceAddress || '未填写'}}</text><text wx:if="{{item.serviceMode==='HOME_SERVICE'&&item.salesmanName}}" style="display:block;margin-top:8rpx">业务员：{{item.salesmanName}}</text><text wx:if="{{item.serviceMode==='STORE_SERVICE'&&item.merchantName}}" style="display:block;margin-top:8rpx">指定网点：{{item.merchantName}}</text></view>
 
     <block wx:if="{{item.status==='CONFIRMED'}}">
-      <picker wx:if="{{item.serviceMode==='HOME_SERVICE'&&homeSalesmen.length}}" range="{{homeSalesmen}}" range-key="name" data-id="{{item.id}}" bindchange="onDispatchChange"><view class="picker">选择上门型派遣人员 ›</view></picker>
-      <view wx:if="{{item.serviceMode==='HOME_SERVICE'&&homeSalesmen.length}}" style="margin-top:10rpx;color:#8a97a6;font-size:20rpx;text-align:center">仅显示启用的上门型业务员</view>
-      <view wx:if="{{item.serviceMode==='HOME_SERVICE'&&!homeSalesmen.length}}" class="warning">暂无可派遣的上门型业务员，请管理员创建或调整业务员类型。</view>
-      <picker wx:if="{{item.serviceMode==='STORE_SERVICE'&&outlets.length}}" range="{{outlets}}" range-key="name" data-id="{{item.id}}" bindchange="onOutletChange"><view class="picker">选择指定办理网点 ›</view></picker>
-      <view wx:if="{{item.serviceMode==='STORE_SERVICE'&&!outlets.length}}" class="warning">暂无可派遣的启用网点，请管理员先创建并启用商家网点。</view>
+      <picker wx:if="{{item.serviceMode==='HOME_SERVICE'&&item.eligibleSalesmen.length}}" range="{{item.eligibleSalesmen}}" range-key="dispatchLabel" data-id="{{item.id}}" bindchange="onDispatchChange"><view class="picker">人工选择推荐业务员 ›</view></picker>
+      <view wx:if="{{item.serviceMode==='HOME_SERVICE'&&item.eligibleSalesmen.length}}" class="candidate-tip {{item.salesmanNearbyFallback?'fallback':''}}">{{item.salesmanMatchLevel==='SAME_DISTRICT'?'同区推荐':item.salesmanMatchLevel==='NEIGHBOR_DISTRICT'?'同区无可派人员，按相邻区域配置推荐':'同区及相邻区无可派人员，显示成都范围全部可派人员'}}</view>
+      <view wx:for="{{item.eligibleSalesmen}}" wx:for-item="salesman" wx:key="id" style="margin-top:10rpx;padding:14rpx;border-radius:10rpx;background:#f6f9fa;color:#607286;font-size:20rpx"><text>{{salesman.name}} · 进行中 {{salesman.activeTaskCount || 0}} 单</text><text wx:if="{{salesman.nextAppointmentTime}}" style="display:block;margin-top:6rpx">最近安排：{{salesman.nextAppointmentTime}}</text></view>
+      <view wx:if="{{item.serviceMode==='HOME_SERVICE'&&!item.eligibleSalesmen.length}}" class="warning">当前没有可派遣的外派业务员，请管理员新增或启用外派业务员。</view>
+      <picker wx:if="{{item.serviceMode==='STORE_SERVICE'&&item.eligibleOutlets.length}}" range="{{item.eligibleOutlets}}" range-key="outletLabel" data-id="{{item.id}}" bindchange="onOutletChange"><view class="picker">人工选择推荐网点 ›</view></picker>
+      <view wx:if="{{item.serviceMode==='STORE_SERVICE'&&item.eligibleOutlets.length}}" class="candidate-tip {{item.outletNearbyFallback?'fallback':''}}">{{item.outletMatchLevel==='SAME_DISTRICT'?'同区推荐':item.outletMatchLevel==='NEIGHBOR_DISTRICT'?'同区无可用网点，按相邻区域配置推荐':'同区及相邻区无可用网点，显示成都范围全部可用网点'}}</view>
+      <view wx:if="{{item.serviceMode==='STORE_SERVICE'&&!item.eligibleOutlets.length}}" class="warning">当前没有可指派网点，请管理员新增或启用网点。</view>
     </block>
 
   </view>

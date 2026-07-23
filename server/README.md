@@ -12,10 +12,10 @@ DB_HOST=... DB_PORT=3311 DB_NAME=... DB_USER=... DB_PASSWORD=... npm start
 
 ## 手机号归属地数据
 
-导入前先在 PowerShell 中设置数据库密码，然后在 `server` 目录执行：
+号码归属地使用独立数据库连接。先配置 `PHONE_DB_HOST`、`PHONE_DB_PORT`、`PHONE_DB_NAME`、`PHONE_DB_USER` 和 `PHONE_DB_PASSWORD`，然后在 `server` 目录执行：
 
 ```powershell
-$env:DB_PASSWORD = '云数据库密码'
+$env:PHONE_DB_PASSWORD = '号码库密码'
 npm run import:phone -- "D:\Project\phone\phone_location\mysql\phone_location.sql"
 ```
 

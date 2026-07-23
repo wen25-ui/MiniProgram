@@ -5,9 +5,19 @@ SELECT '演示合作门店', '李店长', '13600000001'
 WHERE NOT EXISTS (SELECT 1 FROM merchants WHERE name = '演示合作门店');
 SET @merchant_id := (SELECT id FROM merchants WHERE name = '演示合作门店' ORDER BY id LIMIT 1);
 
+UPDATE merchants SET service_region = '滨湖区' WHERE id = @merchant_id;
+INSERT INTO merchants (name, contact_name, contact_phone, service_region)
+SELECT '异地测试网点', '异地店长', '13600000002', '新吴区'
+WHERE NOT EXISTS (SELECT 1 FROM merchants WHERE name = '异地测试网点');
+
 INSERT INTO users (phone, display_name, phone_verified_at) VALUES
   ('13600000001', '李店长', NOW(3)),
   ('13800001111', '张业务', NOW(3)),
+  ('13800001112', '刘业务', NOW(3)),
+  ('13800001113', '陈业务', NOW(3)),
+  ('13800001114', '赵业务', NOW(3)),
+  ('13800001115', '孙业务', NOW(3)),
+  ('13800001116', '周业务', NOW(3)),
   ('13700000001', '王客服', NOW(3)),
   ('13500000001', '赵财务', NOW(3)),
   ('13400000001', '陈老板', NOW(3)),
@@ -17,6 +27,7 @@ INSERT INTO users (phone, display_name, phone_verified_at) VALUES
   ('13912345671', '周女士', NOW(3)),
   ('13912345672', '吴先生', NOW(3)),
   ('13912345673', '郑女士', NOW(3))
+  ,('13912345674', '测试用户七', NOW(3))
 ON DUPLICATE KEY UPDATE display_name = VALUES(display_name);
 
 INSERT INTO users (phone, login_name, display_name, password_hash, account_status)
@@ -25,10 +36,15 @@ ON DUPLICATE KEY UPDATE display_name = VALUES(display_name), password_hash = VAL
 
 -- 所有演示账号使用同一测试密码 1234；数据库只保存 SHA-256 哈希。
 UPDATE users SET password_hash = SHA2('1234', 256)
-WHERE phone IN ('13600000001', '13800001111', '13700000001', '13500000001', '13400000001', '13912345678', '13912345679', '13912345670', '13912345671', '13912345672', '13912345673');
+WHERE phone IN ('13600000001', '13800001111', '13800001112', '13800001113', '13800001114', '13800001115', '13800001116', '13700000001', '13500000001', '13400000001', '13912345678', '13912345679', '13912345670', '13912345671', '13912345672', '13912345673', '13912345674');
 
 SET @merchant_user_id := (SELECT id FROM users WHERE phone = '13600000001');
 SET @salesman_user_id := (SELECT id FROM users WHERE phone = '13800001111');
+SET @salesman_user_2_id := (SELECT id FROM users WHERE phone = '13800001112');
+SET @salesman_user_3_id := (SELECT id FROM users WHERE phone = '13800001113');
+SET @salesman_user_4_id := (SELECT id FROM users WHERE phone = '13800001114');
+SET @salesman_user_5_id := (SELECT id FROM users WHERE phone = '13800001115');
+SET @salesman_user_6_id := (SELECT id FROM users WHERE phone = '13800001116');
 SET @service_user_id := (SELECT id FROM users WHERE phone = '13700000001');
 SET @finance_user_id := (SELECT id FROM users WHERE phone = '13500000001');
 SET @boss_user_id := (SELECT id FROM users WHERE phone = '13400000001');
@@ -39,10 +55,16 @@ SET @client_service_id := (SELECT id FROM users WHERE phone = '13912345670');
 SET @client_verify_id := (SELECT id FROM users WHERE phone = '13912345671');
 SET @client_completed_id := (SELECT id FROM users WHERE phone = '13912345672');
 SET @client_posted_id := (SELECT id FROM users WHERE phone = '13912345673');
+SET @client_store_id := (SELECT id FROM users WHERE phone = '13912345674');
 
 INSERT INTO user_roles (user_id, role_code, merchant_id, salesman_code) VALUES
   (@merchant_user_id, 'merchant', @merchant_id, NULL),
   (@salesman_user_id, 'salesman', NULL, 's_demo_001'),
+  (@salesman_user_2_id, 'salesman', NULL, 's_demo_002'),
+  (@salesman_user_3_id, 'salesman', NULL, 's_demo_003'),
+  (@salesman_user_4_id, 'salesman', NULL, 's_demo_004'),
+  (@salesman_user_5_id, 'salesman', NULL, 's_demo_005'),
+  (@salesman_user_6_id, 'salesman', NULL, 's_demo_006'),
   (@service_user_id, 'customer-service', NULL, NULL),
   (@finance_user_id, 'finance', NULL, NULL),
   (@boss_user_id, 'boss', NULL, NULL),
@@ -53,7 +75,13 @@ INSERT INTO user_roles (user_id, role_code, merchant_id, salesman_code) VALUES
   (@client_verify_id, 'client', NULL, NULL),
   (@client_completed_id, 'client', NULL, NULL),
   (@client_posted_id, 'client', NULL, NULL)
+  ,(@client_store_id, 'client', NULL, NULL)
 ON DUPLICATE KEY UPDATE merchant_id = VALUES(merchant_id), salesman_code = VALUES(salesman_code);
+
+UPDATE user_roles SET salesman_type = 'HOME_VISIT', service_region = '滨湖区'
+WHERE user_id IN (@salesman_user_id, @salesman_user_2_id, @salesman_user_3_id, @salesman_user_4_id) AND role_code = 'salesman';
+UPDATE user_roles SET salesman_type = 'HOME_VISIT', service_region = '新吴区'
+WHERE user_id IN (@salesman_user_5_id, @salesman_user_6_id) AND role_code = 'salesman';
 
 INSERT INTO merchant_invites (merchant_id, invite_code, source_type)
 VALUES (@merchant_id, 'demo-merchant-001', 'merchant_qr')
@@ -113,6 +141,28 @@ INSERT INTO applications (
 SELECT '10000000-0000-4000-8000-000000000006', @client_posted_id, @merchant_id, @invite_id, 'merchant_qr', '13912345673',
   'QUERY_SUCCESS', '广东省', '深圳市', 'LOCAL_RESIDENT', 'FROM_400', JSON_ARRAY(true, true, true, true), 1, 'PENDING', 'demo-v1', 'COMPLETED', 'HOME_SERVICE', '2026-07-18 14:00:00', @salesman_user_id, 800.00, 'REFUND_POSTED', NOW(3)
 WHERE NOT EXISTS (SELECT 1 FROM applications WHERE id = '10000000-0000-4000-8000-000000000006');
+
+INSERT INTO applications (
+  id, client_user_id, merchant_id, merchant_invite_id, source_type, phone_snapshot,
+  attribution_status, attribution_province, attribution_city, local_option, expense_tier,
+  commitments, pre_screen_passed, pre_screen_status, rule_version, status, service_mode, service_region, screening_submitted_at
+)
+SELECT '10000000-0000-4000-8000-000000000007', @client_store_id, @merchant_id, @invite_id, 'merchant_qr', '13912345674',
+  'QUERY_SUCCESS', '江苏省', '无锡市', 'LOCAL_RESIDENT', 'FROM_250', JSON_ARRAY(true, true, true), 1, 'PENDING', 'demo-v1', 'CONFIRMED', 'STORE_SERVICE', '滨湖区', NOW(3)
+WHERE NOT EXISTS (SELECT 1 FROM applications WHERE id = '10000000-0000-4000-8000-000000000007');
+
+UPDATE applications
+SET service_region = '滨湖区',
+    service_address = CASE WHEN service_mode = 'HOME_SERVICE' THEN '无锡市滨湖区蠡湖大道测试小区1号楼' ELSE service_address END,
+    appointment_time = CASE
+      WHEN id = '10000000-0000-4000-8000-000000000002' THEN DATE_ADD(CURRENT_DATE, INTERVAL 1 DAY)
+      WHEN id = '10000000-0000-4000-8000-000000000003' THEN DATE_ADD(DATE_ADD(CURRENT_DATE, INTERVAL 1 DAY), INTERVAL 10 HOUR)
+      ELSE appointment_time END
+WHERE id IN (
+  '10000000-0000-4000-8000-000000000002', '10000000-0000-4000-8000-000000000003',
+  '10000000-0000-4000-8000-000000000004', '10000000-0000-4000-8000-000000000005',
+  '10000000-0000-4000-8000-000000000006'
+);
 
 INSERT INTO application_status_history (application_id, to_status, action_code, operator_user_id, operator_role)
 SELECT '10000000-0000-4000-8000-000000000001', 'PENDING', 'PRE_SCREEN_PASSED', NULL, 'system'

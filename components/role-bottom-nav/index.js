@@ -19,6 +19,7 @@ const NAV_ITEMS = {
   salesman: [
     { key: 'home', label: '任务概览', icon: '览', url: '/modules/salesman/pages/home/index' },
     { key: 'tasks', label: '上门任务', icon: '任', url: '/modules/salesman/pages/tasks/index' },
+    { key: 'schedule', label: '任务安排', icon: '排', url: '/modules/salesman/pages/schedule/index' },
     { key: 'profile', label: '用户管理', icon: '人', url: '/pages/account/index?role=salesman' }
   ],
   boss: [

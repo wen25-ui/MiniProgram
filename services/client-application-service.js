@@ -34,6 +34,9 @@ function getCustomerSalesmen() {
 function getCustomerOutlets() {
   return customerRequest('/v1/customer/outlets').then(response => response.outlets || [])
 }
+function getRegionalDispatchCandidates(id) {
+  return customerRequest(`/v1/customer/applications/${id}/dispatch-candidates`)
+}
 function getCustomerVerifications(category) {
   const query = ['completed', 'rejected'].includes(category) ? `?category=${category}` : ''
   return customerRequest(`/v1/customer/verifications${query}`).then(response => response.verifications || [])
@@ -47,7 +50,7 @@ function recordContactResult(id, result, reason) { return customerRequest(`/v1/c
 function verifyCustomerInfo(id, verifyResult, remark) { return customerRequest(`/v1/customer/applications/${id}/verify-info`, { verifyResult, remark }) }
 function recordCustomerIntention(id, customerIntention, remark) { return customerRequest(`/v1/customer/applications/${id}/intention`, { customerIntention, remark }) }
 function correctCustomerInfo(id, correctedInfo, remark) { return customerRequest(`/v1/customer/applications/${id}/correct-info`, { correctedInfo, remark }) }
-function selectServiceType(id, serviceMode) { return customerRequest(`/v1/customer/applications/${id}/service-type`, { serviceMode }) }
+function selectServiceType(id, serviceMode, address) { return customerRequest(`/v1/customer/applications/${id}/service-type`, Object.assign({ serviceMode }, address)) }
 function retryContact(id) { return customerRequest(`/v1/customer/applications/${id}/retry-contact`, {}) }
 function selectServiceMode(id, serviceMode) { return customerRequest(`/v1/customer/applications/${id}/service-mode`, { serviceMode }) }
 function confirmAppointment(id, appointmentTime) { return customerRequest(`/v1/customer/applications/${id}/confirm-appointment`, { appointmentTime }) }
@@ -61,6 +64,19 @@ function getSalesmanApplications() { return salesmanRequest('/v1/salesman/applic
 function startService(id) { return salesmanRequest(`/v1/salesman/applications/${id}/start`, {}) }
 function submitFulfillment(id, identityVerified, voucherRemark) { return salesmanRequest(`/v1/salesman/applications/${id}/submit`, { identityVerified, voucherRemark }) }
 function failHomeService(id, reason) { return salesmanRequest(`/v1/salesman/applications/${id}/fail`, { reason }) }
+function getSalesmanTasks(category) {
+  const query = category ? `?category=${encodeURIComponent(category)}` : ''
+  return salesmanRequest(`/v1/salesman/tasks${query}`).then(response => response.tasks || [])
+}
+function getSalesmanTask(id) { return salesmanRequest(`/v1/salesman/tasks/${id}`).then(response => response.task) }
+function acceptSalesmanTask(id) { return salesmanRequest(`/v1/salesman/tasks/${id}/accept`, {}) }
+function recordSalesmanContact(id, data) { return salesmanRequest(`/v1/salesman/tasks/${id}/contact`, data) }
+function confirmSalesmanAppointment(id, appointmentTime, serviceAddress) { return salesmanRequest(`/v1/salesman/tasks/${id}/appointment`, { appointmentTime, serviceAddress }) }
+function confirmSalesmanArrival(id) { return salesmanRequest(`/v1/salesman/tasks/${id}/arrive`, {}) }
+function startSalesmanTask(id) { return salesmanRequest(`/v1/salesman/tasks/${id}/start`, {}) }
+function finishSalesmanProcessing(id, remark) { return salesmanRequest(`/v1/salesman/tasks/${id}/finish-processing`, { remark }) }
+function uploadSalesmanResult(id, identityVerified, resultDescription) { return salesmanRequest(`/v1/salesman/tasks/${id}/result`, { identityVerified, resultStatus: 'SUCCESS', resultDescription }) }
+function abnormalCloseSalesmanTask(id, reason) { return salesmanRequest(`/v1/salesman/tasks/${id}/abnormal-close`, { reason }) }
 
 module.exports = {
   getCustomerServiceApplications,
@@ -69,6 +85,7 @@ module.exports = {
   getCustomerWorkItem,
   getCustomerSalesmen,
   getCustomerOutlets,
+  getRegionalDispatchCandidates,
   getCustomerVerifications,
   getCustomerVerification,
   reviewApplication,
@@ -90,5 +107,15 @@ module.exports = {
   getSalesmanApplications,
   startService,
   submitFulfillment,
-  failHomeService
+  failHomeService,
+  getSalesmanTasks,
+  getSalesmanTask,
+  acceptSalesmanTask,
+  recordSalesmanContact,
+  confirmSalesmanAppointment,
+  confirmSalesmanArrival,
+  startSalesmanTask,
+  finishSalesmanProcessing,
+  uploadSalesmanResult,
+  abnormalCloseSalesmanTask
 }

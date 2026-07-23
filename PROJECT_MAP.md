@@ -34,6 +34,7 @@
 页面：
 - home 首页
 - tasks 任务
+- schedule 任务安排
 
 ### 客服模块 modules/customer-service
 功能：审核客户申请

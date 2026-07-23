@@ -22,14 +22,41 @@ CREATE TABLE IF NOT EXISTS users (
   CONSTRAINT chk_users_account_status CHECK (account_status IN ('ACTIVE', 'DISABLED'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+CREATE TABLE IF NOT EXISTS sys_area (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  parent_id BIGINT UNSIGNED NULL,
+  name VARCHAR(80) NOT NULL,
+  level TINYINT UNSIGNED NOT NULL,
+  UNIQUE KEY uk_sys_area_parent_name (parent_id, name),
+  KEY idx_sys_area_parent_level (parent_id, level),
+  CONSTRAINT fk_sys_area_parent FOREIGN KEY (parent_id) REFERENCES sys_area(id),
+  CONSTRAINT chk_sys_area_level CHECK (level IN (1, 2, 3))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS sys_area_neighbor (
+  area_id BIGINT UNSIGNED NOT NULL,
+  neighbor_area_id BIGINT UNSIGNED NOT NULL,
+  sort_order INT UNSIGNED NOT NULL,
+  PRIMARY KEY (area_id, neighbor_area_id),
+  UNIQUE KEY uk_sys_area_neighbor_order (area_id, sort_order),
+  CONSTRAINT fk_sys_area_neighbor_area FOREIGN KEY (area_id) REFERENCES sys_area(id),
+  CONSTRAINT fk_sys_area_neighbor_target FOREIGN KEY (neighbor_area_id) REFERENCES sys_area(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS merchants (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   name VARCHAR(120) NOT NULL,
   contact_name VARCHAR(80) NULL,
   contact_phone VARCHAR(20) NULL,
+  service_region VARCHAR(120) NULL,
+  area_id BIGINT UNSIGNED NULL,
+  latitude DECIMAL(10,7) NULL,
+  longitude DECIMAL(10,7) NULL,
   status VARCHAR(24) NOT NULL DEFAULT 'ACTIVE',
   created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  KEY idx_merchants_area_status (area_id, status),
+  CONSTRAINT fk_merchants_area FOREIGN KEY (area_id) REFERENCES sys_area(id),
   CONSTRAINT chk_merchants_status CHECK (status IN ('ACTIVE', 'DISABLED'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -40,11 +67,17 @@ CREATE TABLE IF NOT EXISTS user_roles (
   assigned_merchant_id BIGINT UNSIGNED NULL,
   salesman_code VARCHAR(64) NULL,
   salesman_type VARCHAR(32) NULL,
+  service_region VARCHAR(120) NULL,
+  area_id BIGINT UNSIGNED NULL,
   assigned_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   PRIMARY KEY (user_id, role_code),
   KEY idx_user_roles_merchant (merchant_id),
+  KEY idx_user_roles_assigned_merchant (assigned_merchant_id),
+  KEY idx_user_roles_salesman_area (role_code, salesman_type, area_id),
   CONSTRAINT fk_user_roles_user FOREIGN KEY (user_id) REFERENCES users(id),
   CONSTRAINT fk_user_roles_merchant FOREIGN KEY (merchant_id) REFERENCES merchants(id),
+  CONSTRAINT fk_user_roles_assigned_merchant FOREIGN KEY (assigned_merchant_id) REFERENCES merchants(id),
+  CONSTRAINT fk_user_roles_area FOREIGN KEY (area_id) REFERENCES sys_area(id),
   CONSTRAINT chk_user_roles_code CHECK (role_code IN ('client', 'merchant', 'salesman', 'customer-service', 'finance', 'boss', 'admin'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
@@ -108,6 +141,15 @@ CREATE TABLE IF NOT EXISTS applications (
   service_failure_reason VARCHAR(500) NULL,
   closed_reason VARCHAR(500) NULL,
   appointment_time DATETIME(0) NULL,
+  service_address VARCHAR(500) NULL,
+  service_region VARCHAR(120) NULL,
+  province VARCHAR(80) NULL,
+  city VARCHAR(80) NULL,
+  district VARCHAR(80) NULL,
+  detail_address VARCHAR(500) NULL,
+  district_area_id BIGINT UNSIGNED NULL,
+  latitude DECIMAL(10,7) NULL,
+  longitude DECIMAL(10,7) NULL,
   assigned_merchant_id BIGINT UNSIGNED NULL,
   assigned_salesman_user_id BIGINT UNSIGNED NULL,
   expected_refund_amount DECIMAL(12,2) NULL,
@@ -120,12 +162,14 @@ CREATE TABLE IF NOT EXISTS applications (
   KEY idx_applications_assigned_merchant (assigned_merchant_id),
   KEY idx_applications_salesman_status (assigned_salesman_user_id, status, appointment_time),
   KEY idx_applications_status_created (status, created_at),
+  KEY idx_applications_district_status (district_area_id, status),
   CONSTRAINT fk_applications_client FOREIGN KEY (client_user_id) REFERENCES users(id),
   CONSTRAINT fk_applications_merchant FOREIGN KEY (merchant_id) REFERENCES merchants(id),
   CONSTRAINT fk_applications_assigned_merchant FOREIGN KEY (assigned_merchant_id) REFERENCES merchants(id),
   CONSTRAINT fk_applications_invite FOREIGN KEY (merchant_invite_id) REFERENCES merchant_invites(id),
   CONSTRAINT fk_applications_salesman FOREIGN KEY (assigned_salesman_user_id) REFERENCES users(id),
   CONSTRAINT fk_applications_verifier FOREIGN KEY (verified_by_user_id) REFERENCES users(id),
+  CONSTRAINT fk_applications_district_area FOREIGN KEY (district_area_id) REFERENCES sys_area(id),
   CONSTRAINT chk_applications_source CHECK (source_type IS NULL OR source_type IN ('merchant_qr', 'friend_share')),
   CONSTRAINT chk_applications_local_option CHECK (local_option IS NULL OR local_option IN ('LOCAL_RESIDENT', 'LOCAL_NUMBER', 'ACCEPT_LOCAL_CARD')),
   CONSTRAINT chk_applications_expense_tier CHECK (expense_tier IS NULL OR expense_tier IN ('UNDER_79', 'FROM_79', 'FROM_150', 'FROM_250', 'FROM_400')),
@@ -166,19 +210,6 @@ CREATE TABLE IF NOT EXISTS application_reviews (
   CONSTRAINT chk_application_reviews_decision CHECK (decision IN ('APPROVE', 'REJECT'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
-CREATE TABLE IF NOT EXISTS application_contact_records (
-  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  application_id CHAR(36) NOT NULL,
-  operator_user_id BIGINT UNSIGNED NOT NULL,
-  result VARCHAR(32) NOT NULL,
-  remark VARCHAR(500) NULL,
-  contacted_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
-  KEY idx_contact_records_application (application_id, contacted_at),
-  CONSTRAINT fk_contact_records_application FOREIGN KEY (application_id) REFERENCES applications(id),
-  CONSTRAINT fk_contact_records_operator FOREIGN KEY (operator_user_id) REFERENCES users(id),
-  CONSTRAINT chk_contact_records_result CHECK (result IN ('CONTACTED', 'UNREACHABLE', 'CLIENT_DECLINED'))
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
-
 CREATE TABLE IF NOT EXISTS application_appointments (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   application_id CHAR(36) NOT NULL,
@@ -211,12 +242,87 @@ CREATE TABLE IF NOT EXISTS application_dispatches (
   CONSTRAINT chk_application_dispatches_status CHECK (status IN ('ASSIGNED', 'ACCEPTED', 'REJECTED', 'REASSIGNED', 'CANCELLED'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 
+CREATE TABLE IF NOT EXISTS application_tasks (
+  id CHAR(36) NOT NULL PRIMARY KEY,
+  application_id CHAR(36) NOT NULL,
+  service_type VARCHAR(32) NOT NULL,
+  assignee_user_id BIGINT UNSIGNED NULL,
+  store_id BIGINT UNSIGNED NULL,
+  customer_id BIGINT UNSIGNED NOT NULL,
+  customer_name VARCHAR(80) NULL,
+  customer_phone VARCHAR(20) NOT NULL,
+  service_address VARCHAR(500) NULL,
+  status VARCHAR(40) NOT NULL DEFAULT 'PENDING_ACCEPT',
+  appointment_time DATETIME(0) NULL,
+  contact_fail_count INT UNSIGNED NOT NULL DEFAULT 0,
+  accepted_at DATETIME(3) NULL,
+  contacted_at DATETIME(3) NULL,
+  arrived_at DATETIME(3) NULL,
+  started_at DATETIME(3) NULL,
+  processing_finished_at DATETIME(3) NULL,
+  result_uploaded_at DATETIME(3) NULL,
+  completed_at DATETIME(3) NULL,
+  fail_reason VARCHAR(500) NULL,
+  version INT UNSIGNED NOT NULL DEFAULT 0,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  UNIQUE KEY uk_application_tasks_application (application_id),
+  KEY idx_application_tasks_assignee_status (assignee_user_id, status, appointment_time),
+  KEY idx_application_tasks_store_status (store_id, status, appointment_time),
+  CONSTRAINT fk_application_tasks_application FOREIGN KEY (application_id) REFERENCES applications(id),
+  CONSTRAINT fk_application_tasks_assignee FOREIGN KEY (assignee_user_id) REFERENCES users(id),
+  CONSTRAINT fk_application_tasks_store FOREIGN KEY (store_id) REFERENCES merchants(id),
+  CONSTRAINT fk_application_tasks_customer FOREIGN KEY (customer_id) REFERENCES users(id),
+  CONSTRAINT chk_application_tasks_service_type CHECK (service_type IN ('HOME_SERVICE', 'STORE_SERVICE')),
+  CONSTRAINT chk_application_tasks_status CHECK (status IN ('PENDING_ACCEPT', 'ACCEPTED', 'WAITING_CONTACT', 'CONTACT_FAILED', 'CONTACTED', 'WAITING_TIME_CONFIRMATION', 'TIME_CONFIRMED', 'WAITING_HOME_SERVICE', 'WAITING_CUSTOMER_ARRIVAL', 'WAITING_START_CONFIRMATION', 'PROCESSING', 'PROCESSING_FAILED', 'WAITING_RESULT_UPLOAD', 'PENDING_VERIFICATION', 'COMPLETED', 'CANCELLED', 'ABNORMAL_CLOSED'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS application_task_status_history (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  task_id CHAR(36) NOT NULL,
+  old_status VARCHAR(40) NULL,
+  new_status VARCHAR(40) NOT NULL,
+  operator_user_id BIGINT UNSIGNED NULL,
+  operator_role VARCHAR(32) NULL,
+  operation VARCHAR(64) NOT NULL,
+  remark VARCHAR(500) NULL,
+  metadata JSON NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  KEY idx_task_history_task_time (task_id, created_at),
+  CONSTRAINT fk_task_history_task FOREIGN KEY (task_id) REFERENCES application_tasks(id),
+  CONSTRAINT fk_task_history_operator FOREIGN KEY (operator_user_id) REFERENCES users(id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+CREATE TABLE IF NOT EXISTS application_contact_records (
+  id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  application_id CHAR(36) NOT NULL,
+  task_id CHAR(36) NULL,
+  customer_id BIGINT UNSIGNED NULL,
+  operator_user_id BIGINT UNSIGNED NOT NULL,
+  contact_method VARCHAR(24) NOT NULL DEFAULT 'PHONE',
+  result VARCHAR(32) NOT NULL,
+  failure_reason VARCHAR(32) NULL,
+  remark VARCHAR(500) NULL,
+  is_retry TINYINT(1) NOT NULL DEFAULT 0,
+  contacted_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  KEY idx_contact_records_application (application_id, contacted_at),
+  KEY idx_contact_records_task (task_id, contacted_at),
+  CONSTRAINT fk_contact_records_application FOREIGN KEY (application_id) REFERENCES applications(id),
+  CONSTRAINT fk_contact_records_task FOREIGN KEY (task_id) REFERENCES application_tasks(id),
+  CONSTRAINT fk_contact_records_customer FOREIGN KEY (customer_id) REFERENCES users(id),
+  CONSTRAINT fk_contact_records_operator FOREIGN KEY (operator_user_id) REFERENCES users(id),
+  CONSTRAINT chk_contact_records_result CHECK (result IN ('CONTACTED', 'UNREACHABLE', 'CLIENT_DECLINED', 'CONTACT_SUCCESS', 'CONTACT_FAILED'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
 CREATE TABLE IF NOT EXISTS fulfillment_submissions (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  task_id CHAR(36) NULL,
   application_id CHAR(36) NOT NULL,
   salesman_user_id BIGINT UNSIGNED NULL,
   submitted_by_user_id BIGINT UNSIGNED NULL,
   identity_verified TINYINT(1) NOT NULL,
+  result_status VARCHAR(24) NOT NULL DEFAULT 'SUCCESS',
+  result_description VARCHAR(1000) NULL,
   voucher_remark VARCHAR(1000) NOT NULL,
   verification_status VARCHAR(24) NOT NULL DEFAULT 'PENDING',
   verification_reason VARCHAR(500) NULL,
@@ -224,11 +330,14 @@ CREATE TABLE IF NOT EXISTS fulfillment_submissions (
   submitted_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
   verified_at DATETIME(3) NULL,
   KEY idx_fulfillment_application (application_id, submitted_at),
+  KEY idx_fulfillment_task (task_id, submitted_at),
   KEY idx_fulfillment_verification (verification_status, submitted_at),
   CONSTRAINT fk_fulfillment_application FOREIGN KEY (application_id) REFERENCES applications(id),
+  CONSTRAINT fk_fulfillment_task FOREIGN KEY (task_id) REFERENCES application_tasks(id),
   CONSTRAINT fk_fulfillment_salesman FOREIGN KEY (salesman_user_id) REFERENCES users(id),
   CONSTRAINT fk_fulfillment_submitter FOREIGN KEY (submitted_by_user_id) REFERENCES users(id),
   CONSTRAINT fk_fulfillment_verifier FOREIGN KEY (verifier_user_id) REFERENCES users(id),
+  CONSTRAINT chk_fulfillment_result_status CHECK (result_status IN ('SUCCESS', 'FAILED')),
   CONSTRAINT chk_fulfillment_verification CHECK (verification_status IN ('PENDING', 'APPROVED', 'RETURNED'))
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 

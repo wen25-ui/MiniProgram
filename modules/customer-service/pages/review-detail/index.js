@@ -20,7 +20,7 @@ function yesNo(value, emptyText = '无需选择') {
 
 Page({
   data: {
-    id: '', application: null, commitments: [], serviceMode: '', loading: true, submitting: false, message: '',
+    id: '', application: null, commitments: [], serviceMode: '', province: '四川省', city: '成都市', district: '', detailAddress: '', loading: true, submitting: false, message: '',
     pendingAction: '', actionTitle: '', actionPlaceholder: '', actionRemark: '',
     expenseOptions: EXPENSE_OPTIONS, correction: { localNumber: true, acceptLocalCard: null, expenseTier: '', commitments: [true, true, true], remark: '' }
   },
@@ -38,6 +38,9 @@ Page({
           attributionText: [application.attributionProvince, application.attributionCity].filter(Boolean).join(' ') || '未查询到'
         }),
         serviceMode: application.serviceMode || '',
+        province: application.province || '四川省', city: application.city || '成都市',
+        district: application.district || application.serviceRegion || '',
+        detailAddress: application.detailAddress || application.serviceAddress || '',
         commitments: COMMITMENT_LABELS.map((label, index) => ({ label, accepted: Boolean(values[index]) })),
         correction: {
           localNumber: application.localNumber !== false,
@@ -63,6 +66,10 @@ Page({
   },
   onCorrectionRemarkInput(event) { this.setData({ 'correction.remark': event.detail.value }) },
   chooseServiceMode(event) { this.setData({ serviceMode: event.currentTarget.dataset.mode }) },
+  onProvinceInput(event) { this.setData({ province: event.detail.value }) },
+  onCityInput(event) { this.setData({ city: event.detail.value }) },
+  onDistrictInput(event) { this.setData({ district: event.detail.value }) },
+  onDetailAddressInput(event) { this.setData({ detailAddress: event.detail.value }) },
   run(task, title) {
     if (this.data.submitting) return
     this.setData({ submitting: true, message: '' })
@@ -114,6 +121,12 @@ Page({
   },
   confirmServiceType() {
     if (!this.data.serviceMode) return wx.showToast({ title: '请选择办理方式', icon: 'none' })
-    this.run(selectServiceType(this.data.id, this.data.serviceMode), '办理方式已确认')
+    const address = {
+      province: this.data.province.trim(), city: this.data.city.trim(), district: this.data.district.trim(),
+      detailAddress: this.data.detailAddress.trim()
+    }
+    if (!address.province || !address.city || !address.district) return wx.showToast({ title: '请完整填写省市区', icon: 'none' })
+    if (!address.detailAddress) return wx.showToast({ title: '请填写详细地址', icon: 'none' })
+    this.run(selectServiceType(this.data.id, this.data.serviceMode, address), '办理方式已确认')
   }
 })

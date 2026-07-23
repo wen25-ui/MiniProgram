@@ -1,6 +1,6 @@
 const fs = require('fs')
 const path = require('path')
-const db = require('../src/db')
+const db = require('../src/phone-db')
 
 const source = path.resolve(process.argv[2] || '')
 if (!source || !fs.existsSync(source)) {

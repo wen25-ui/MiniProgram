@@ -14,6 +14,14 @@ module.exports = {
     user: required('DB_USER'),
     password: required('DB_PASSWORD')
   },
+  phoneDb: {
+    host: process.env.PHONE_DB_HOST || '',
+    port: Number(process.env.PHONE_DB_PORT || 4000),
+    database: process.env.PHONE_DB_NAME || '',
+    user: process.env.PHONE_DB_USER || '',
+    password: process.env.PHONE_DB_PASSWORD || '',
+    ssl: { minVersion: 'TLSv1.2', rejectUnauthorized: true }
+  },
   sessionTtlDays: Number(process.env.SESSION_TTL_DAYS || 30),
   localProvince: '四川',
   localCity: '成都',

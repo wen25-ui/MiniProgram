@@ -23,3 +23,9 @@ modules/merchant/pages/
 
 - 修改商家功能优先检查 modules/merchant。
 - 保持角色权限隔离。
+
+## 行政区域
+
+- 网点通过 `merchants.area_id` 关联 `sys_area` 的区县记录。
+- `service_region` 暂时保留用于兼容展示；新增和编辑网点时同步维护 `area_id`。
+- `latitude`、`longitude` 仅为未来真实距离排序预留，当前派单不使用。

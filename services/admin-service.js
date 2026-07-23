@@ -29,5 +29,8 @@ function listOrders(status) {
 function getOrder(id) {
   return request(`/v1/admin/orders/${id}`, { session: getSession() }).then(data => data.order)
 }
+function listOutlets() {
+  return request('/v1/admin/outlets', { session: getSession() }).then(data => data.outlets || [])
+}
 
-module.exports = { listAccounts, createAccount, updateAccount, deleteAccount, listOrders, getOrder }
+module.exports = { listAccounts, createAccount, updateAccount, deleteAccount, listOrders, getOrder, listOutlets }

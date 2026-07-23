@@ -1,0 +1,23 @@
+<view class="page">
+  <view class="header">
+    <text class="title">任务安排</text>
+    <text class="desc">查看待完成、已完成和被驳回的上门任务</text>
+  </view>
+  <view class="categories"><view wx:for="{{categories}}" wx:key="key" class="category {{category===item.key?'active':''}}" data-category="{{item.key}}" bindtap="chooseCategory">{{item.label}}</view></view>
+  <text wx:if="{{message}}" class="message">{{message}}</text>
+  <view wx:if="{{loading}}" class="empty">正在读取任务安排…</view>
+  <view wx:for="{{tasks}}" wx:key="id" class="schedule-card" data-id="{{item.id}}" bindtap="openTask">
+    <view class="time-box">
+      <text class="date">{{item.executionDate}}</text>
+      <text class="clock">{{item.executionClock}}</text>
+    </view>
+    <view class="task-main">
+      <view class="task-head"><text class="customer">{{item.customerName}} · {{item.maskedPhone}}</text><text class="status {{item.verificationReason?'rejected':''}}">{{item.scheduleStatusText}}</text></view>
+      <text class="address">{{item.serviceAddress || '上门地址暂未填写'}}</text>
+      <text wx:if="{{item.verificationReason}}" class="reject-reason">驳回原因：{{item.verificationReason}}</text>
+      <text class="order">{{item.applicationId}}</text>
+    </view>
+  </view>
+  <view wx:if="{{!loading&&!tasks.length}}" class="empty">当前分类暂无任务</view>
+  <role-bottom-nav role="salesman" current="schedule"></role-bottom-nav>
+</view>

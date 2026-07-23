@@ -63,3 +63,19 @@ server 目录
 
 - `GET /v1/admin/orders`：查询订单流程列表，可使用 `status` 参数筛选。
 - `GET /v1/admin/orders/:id`：查询订单详情及完整状态流转记录。
+
+## 业务员任务流程（2026-07-22）
+
+- `GET /v1/salesman/tasks`：获取当前业务员或当前网点的任务；支持 `category` 分类参数。
+- `GET /v1/salesman/tasks/:id`：获取任务详情、联系记录和任务状态日志。
+- `POST /v1/salesman/tasks/:id/accept`：接收任务并进入待联系状态。
+- `POST /v1/salesman/tasks/:id/contact`：记录联系成功或失败；失败时必须提交 `failureReason`。
+- `POST /v1/salesman/tasks/:id/appointment`：确认上门时间或预计到店时间。
+- `POST /v1/salesman/tasks/:id/arrive`：确认业务员已到达或客户已到店。
+- `POST /v1/salesman/tasks/:id/start`：确认开始办理。
+- `POST /v1/salesman/tasks/:id/finish-processing`：完成现场办理并进入待上传结果。
+- `POST /v1/salesman/tasks/:id/result`：上传办理结果并进入客服核销。
+- `POST /v1/salesman/tasks/:id/abnormal-close`：填写原因并异常结束任务。
+- `GET /v1/admin/outlets`：管理员维护网点型业务员时获取可绑定网点。
+
+旧 `/v1/salesman/applications/:id/start|submit|fail` 接口继续保留用于兼容，但存在新版任务记录时拒绝绕过任务状态链。
